@@ -1,0 +1,5 @@
+{"learning_rate": [0.001, 0.005, 0.01, 0.05, 0.1, 0.15],
+"max_depth": [3, 5, 10],
+"min_samples_split": [2, 5, 10],
+"min_samples_leaf": [1, 2, 5],
+"n_estimators": [10, 50, 100, 500]}
