@@ -4,6 +4,7 @@ import pysam
 from multiprocessing import Pool
 from collections import Counter
 import statistics
+import os
 
 
 def add_features_parser(subparsers):
@@ -163,8 +164,8 @@ def get_read_features(chrom):
     return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
 
 
-def get_bam_characteristics(jobs, Id, window_list):
-    global windowsize
+def get_bam_characteristics(jobs, window_list):
+    global bamfile_name, windowsize
     # read a BAM file and return different features for windows of the chromosomes
     chromosome_list = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11',
                        'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21',
@@ -209,7 +210,7 @@ def get_bam_characteristics(jobs, Id, window_list):
         feature_list.append(str(total_count_collection[i]/total_reads))
 
     # add filename as sample+cell
-    file = Id.rsplit('/', 1)[1]
+    file = bamfile_name.rsplit('/', 1)[1]
     f1, f2, f3, f4 = file.rsplit('_')
 
     if f1.endswith('A') or f1.endswith('B'):
@@ -230,7 +231,7 @@ def run_feature_generation(args):
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
 
-    Id = args.file
+    path = args.file
     output_file = args.output_file
     jobs = 1
 
@@ -244,9 +245,13 @@ def run_feature_generation(args):
     output.write('\t'.join(features))
     output.write('\n')
 
-    bamfile_name = Id
-    w_list, feature_list = get_bam_characteristics(jobs, Id, windowsize_list)
-    distribution_file.write("\t".join(w_list))
-    distribution_file.write('\n')
-    output.write("\t".join(feature_list))
-    output.write('\n')
+    for path, subdirs, files in os.walk(path):
+        for name in files:
+            if name.endswith('.bam'):
+                next_cell = os.path.join(path, name)
+                bamfile_name = next_cell
+                w_list, feature_list = get_bam_characteristics(jobs, windowsize_list)
+                distribution_file.write("\t".join(w_list))
+                distribution_file.write('\n')
+                output.write("\t".join(feature_list))
+                output.write('\n')
