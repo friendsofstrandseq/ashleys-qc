@@ -2,7 +2,6 @@
 
 
 import pandas as pd
-import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
@@ -22,41 +21,12 @@ def add_prediction_parser(subparsers):
     return subparsers
 
 
-def plot_hist(output_file, probability, annotation):
-    plt.clf()
-    if annotation is not None:
-        class_1 = []
-        class_0 = []
-        for a, p in zip(annotation, probability):
-            if a == 0:
-                class_0.append(p)
-            else:
-                class_1.append(p)
-        plt.hist(class_0, bins=40, alpha=0.8, label='Class 0')
-        plt.hist(class_1, bins=40, alpha=0.8, label='Class 1')
-        plt.legend(loc='upper left')
-
-    else:
-        hist_list = np.around(probability, 2)
-        plt.hist(probability, bins=30)
-    #plt.bar(sections, values)
-
-   # plt.ylabel('occurence')
-    plt.xlabel('class 1 probability')
-    plt.ylabel('count')
-    #plt.xticks(sections, ('0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1'))
-    #plt.title('Scores by group and gender')
-    title = 'prediction distribution'
-    plt.title(title)
-    plt.savefig(output_file + '.png')
-
-
 def predict_model(model_name, output_name, features):
     with open(model_name, 'rb') as m:
         clf = pickle.load(m)
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
-    plot_hist(output_name, probability, None)
+    # plot_hist(output_name, probability, None)
     return prediction, probability
 
 
@@ -126,7 +96,7 @@ def run_prediction(args):
 
     if annotation is not None:
         classes = evaluate_prediction(probability, annotation, dataset)
-        plot_hist(output + 'prediction_annotation', probability, classes)
+        # plot_hist(output + 'prediction_annotation', probability, classes)
 
     file = open(output + 'prediction_probabilities.tsv', 'w')
     critical = open(output + 'critical_predictions.tsv', 'w')

@@ -6,6 +6,7 @@ import sys
 from ashleyslib.train_classification_model import add_training_parser
 from ashleyslib.feature_generation import add_features_parser
 from ashleyslib.prediction import add_prediction_parser
+from ashleyslib.plotting import add_plotting_parser
 
 
 def parse_command_line():
@@ -33,6 +34,7 @@ def add_sub_parsers(main_parser):
     subparsers = add_features_parser(subparsers)
     subparsers = add_training_parser(subparsers)
     subparsers = add_prediction_parser(subparsers)
+    subparsers = add_plotting_parser(subparsers)
     return main_parser
 
 
