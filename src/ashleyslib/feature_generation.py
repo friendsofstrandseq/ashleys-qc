@@ -10,10 +10,13 @@ import os
 def add_features_parser(subparsers):
     parser = subparsers.add_parser('features', help='create features for bam files')
     parser.add_argument('--jobs', '-j', help="the number of jobs used to generate features", type=int)
-    parser.add_argument('--file', '-f', help='the name of the bam file to analyze', required=True)
-    parser.add_argument('--window_size', '-w', help='window size for feature generation', type=int, required=True, nargs='+')
+    parser.add_argument('--file', '-f', required=True,
+                        help='the name of the bam file to analyze or a directory where all bam files are processed')
+    parser.add_argument('--window_size', '-w', help='window size for feature generation', type=int, required=True,
+                        nargs='+')
     parser.add_argument('--output_plot', '-p', help='create plot showing wc feature distribution', required=False)
     parser.add_argument('--output_file', '-o', help='name of output file, should be .tsv', required=True)
+    parser.add_argument('--bam_extension', '-e', help='specify extension of files used for, default .bam')
 
     parser.set_defaults(execute=run_feature_generation)
 
@@ -245,13 +248,25 @@ def run_feature_generation(args):
     output.write('\t'.join(features))
     output.write('\n')
 
-    for path, subdirs, files in os.walk(path):
-        for name in files:
-            if name.endswith('.bam'):
-                next_cell = os.path.join(path, name)
-                bamfile_name = next_cell
-                w_list, feature_list = get_bam_characteristics(jobs, windowsize_list)
-                distribution_file.write("\t".join(w_list))
-                distribution_file.write('\n')
-                output.write("\t".join(feature_list))
-                output.write('\n')
+    if os.path.isfile(path):
+        bamfile_name = path
+        w_list, feature_list = get_bam_characteristics(jobs, windowsize_list)
+        distribution_file.write("\t".join(w_list))
+        distribution_file.write('\n')
+        output.write("\t".join(feature_list))
+        output.write('\n')
+
+    else:
+        extension = '.bam'
+        if args.bam_extension is not None:
+            extension = args.bam_extension
+        for path, subdirs, files in os.walk(path):
+            for name in files:
+                if name.endswith(extension):
+                    next_cell = os.path.join(path, name)
+                    bamfile_name = next_cell
+                    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list)
+                    distribution_file.write("\t".join(w_list))
+                    distribution_file.write('\n')
+                    output.write("\t".join(feature_list))
+                    output.write('\n')
