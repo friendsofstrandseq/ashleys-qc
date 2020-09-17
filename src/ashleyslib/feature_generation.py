@@ -10,7 +10,7 @@ def add_features_parser(subparsers):
     parser = subparsers.add_parser('features', help='create features for bam files')
     parser.add_argument('--jobs', '-j', help="the number of jobs used to generate features", type=int)
     parser.add_argument('--file', '-f', help='the name of the bam file to analyze', required=True)
-    parser.add_argument('--window_size', '-w', help='window size for feature generation', type=int, required=True)
+    parser.add_argument('--window_size', '-w', help='window size for feature generation', type=int, required=True, nargs='+')
     parser.add_argument('--output_plot', '-p', help='create plot showing wc feature distribution', required=False)
     parser.add_argument('--output_file', '-o', help='name of output file, should be .tsv', required=True)
 
@@ -19,20 +19,41 @@ def add_features_parser(subparsers):
     return subparsers
 
 
-def print_statistics(list, all, output):
+def get_header(windows_list):
+    feature_names = []
+    regular_features = ['W10', 'W20', 'W30', 'W40', 'W50', 'W60', 'W70', 'W80', 'W90', 'W100', 'total', 'stdev', 'mean',
+                        'n_stdev', 'n_mean']
+    mb = 1000000
+    for w in windows_list:
+        for f in regular_features:
+            feature_names.append(f + '_' + str(round(w/mb, 2)) + 'mb')
+
+    constant_features = ['unmap', 'map', 'supp', 'dup', 'mq', 'read2', 'good', 'p_unmap', 'p_map', 'p_supp', 'p_dup',
+                         'p_mq', 'p_read2', 'p_good', 'sample_name']
+    feature_names = feature_names + constant_features
+    return feature_names
+
+
+def get_statistics(list, all):
+    feature_list = []
     if len(list) < 2:
-        output.write('\t0\t0')
+        feature_list = feature_list + ['0', '0']
         if all:
-            output.write('\t0\t0')
-        return
+            feature_list = feature_list + ['0', '0']
+        return feature_list
 
-    output.write('\t' + str(statistics.stdev(list)) + '\t' + str(statistics.mean(list)))
+    feature_list.append(str(statistics.stdev(list)))
+    feature_list.append(str(statistics.mean(list)))
     if all:
-        output.write('\t' + str(statistics.variance(list)) + '\t' + str(statistics.median(list)))
+        feature_list.append(str(statistics.variance(list)))
+        feature_list.append(str(statistics.median(list)))
+
+    return feature_list
 
 
-def get_wc_composition(total_window_collection_wc, total_window_collection, output):
+def get_wc_composition(total_window_collection_wc, total_window_collection):
     # create 10 features for 10% steps of w-percentage in windows
+    feature_list = []
     window_dict = dict(total_window_collection)
     wc_collection = Counter(W10=0, W20=0, W30=0, W40=0, W50=0, W60=0, W70=0, W80=0, W90=0, W100=0)
     values = []
@@ -65,16 +86,17 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, outp
         values.append(total_window_collection[i])
 
     if total == 0:
-        output.write('0.0\t0.0\t0.0\t0.0\t0.0\t0.0\t0.0\t0.0\t0.0\t0.0\t0')
-        return values
+        zero_list = ['0.0'] * 10
+        feature_list = feature_list + zero_list
 
-    for i in range(0, 100, 10):
-        c = 'W' + str(i+10)
-        output.write(str(wc_collection[c] / total) + '\t')
+    else:
+        for i in range(0, 100, 10):
+            c = 'W' + str(i+10)
+            feature_list.append(str(wc_collection[c] / total))
 
-    output.write(str(total))
+    feature_list.append(str(total))
 
-    return values, wc_difference, w_percentage_list
+    return values, wc_difference, w_percentage_list, feature_list
 
 
 def get_read_features(chrom):
@@ -89,10 +111,7 @@ def get_read_features(chrom):
 
         window_collection = Counter([])
         window_collection_wc = Counter([])
-        window_collection_chrom_w = Counter([])
         neighbor_difference = []
-        window_collection_chrom_w.update({str(chrom): 1})
-        window_collection_chrom_w.update({str(chrom)+'W': 1})
 
         # count reads in each window of size stepsize
         for i in range(0, length, stepsize):
@@ -131,10 +150,8 @@ def get_read_features(chrom):
                     count_collection.update({'good': 1})
 
                 window_collection_wc.update({s: 1})
-                window_collection_chrom_w.update({str(chrom): 1})
                 if read.is_reverse:
                     window_collection_wc.update({s+'W': 1})
-                    window_collection_chrom_w.update({str(chrom)+'W': 1})
                 else:
                     window_collection_wc.update({s+'C': 1})
 
@@ -143,49 +160,53 @@ def get_read_features(chrom):
                 diff = window_collection[last_window] - window_collection[s]
                 neighbor_difference.append(diff)
 
-    return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference, window_collection_chrom_w
+    return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
 
 
-def get_bam_characteristics(jobs, Id, output):
+def get_bam_characteristics(jobs, Id, window_list):
+    global windowsize
     # read a BAM file and return different features for windows of the chromosomes
     chromosome_list = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11',
                        'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21',
-                       'chr22', 'chrX'] #, 'chrY']
+                       'chr22', 'chrX']
 
-    list = ['unmapped', 'mapped', 'supplementary', 'duplicate', 'mapping_quality', 'read2', 'good']
+    filtered_list = ['unmapped', 'mapped', 'supplementary', 'duplicate', 'mapping_quality', 'read2', 'good']
+    feature_list = []
 
     # collections with different counts over all chromosomes
-    total_count_collection = Counter([])
-    total_window_collection = Counter([])
-    total_window_collection_wc = Counter([])
-    total_neighbor_difference = []
-    total_chrom_collection = Counter([])
+    for w_size in window_list:
+        windowsize = w_size
+        total_count_collection = Counter([])
+        total_window_collection = Counter([])
+        total_window_collection_wc = Counter([])
+        total_neighbor_difference = []
 
-    p = Pool(jobs)
-    result = p.map(get_read_features, chromosome_list)
+        p = Pool(jobs)
+        result = p.map(get_read_features, chromosome_list)
 
-    for r in result:
-        # print(r)
-        total_count_collection += r[1]
-        total_window_collection += r[2]
-        total_window_collection_wc += r[3]
-        total_neighbor_difference += r[4]
-        total_chrom_collection += r[5]
+        for r in result:
+            # print(r)
+            total_count_collection += r[1]
+            total_window_collection += r[2]
+            total_window_collection_wc += r[3]
+            total_neighbor_difference += r[4]
 
-    values, wc_difference, w_percentage_list = get_wc_composition(total_window_collection_wc, total_window_collection,
-                                                                  output)
-    # print_statistics(wc_difference, True)
-    print_statistics(values, False, output)
-    print_statistics(total_neighbor_difference, False, output)
+        values, wc_difference, w_percentage_list, next_features = get_wc_composition(total_window_collection_wc,
+                                                                                     total_window_collection)
+
+        # print_statistics(wc_difference, True)
+        statistics_features = get_statistics(values, False)
+        neighbor_features = get_statistics(total_neighbor_difference, False)
+        feature_list = feature_list + next_features + statistics_features + neighbor_features
 
     # absolute filtering feature values
-    for i in list:
-        output.write('\t' + str(total_count_collection[i]))
+    for i in filtered_list:
+        feature_list.append(str(total_count_collection[i]))
 
     # relative filtering feature values
     total_reads = total_count_collection['mapped'] + total_count_collection['unmapped']
-    for i in list:
-        output.write('\t' + str(total_count_collection[i]/total_reads))
+    for i in filtered_list:
+        feature_list.append(str(total_count_collection[i]/total_reads))
 
     # add filename as sample+cell
     file = Id.rsplit('/', 1)[1]
@@ -197,27 +218,35 @@ def get_bam_characteristics(jobs, Id, output):
     if cell_name.startswith('A') or cell_name.startswith('B'):
         cell_name = cell_name[1:]
     if cell_name.startswith('x'):
-        output.write('\t' + f1 + cell_name + '\n')
+        feature_list.append(f1 + cell_name)
     else:
-        output.write('\t' + f1 + 'x' + cell_name + '\n')
+        feature_list.append(f1 + 'x' + cell_name)
 
-    return w_percentage_list
+    return w_percentage_list, feature_list
 
 
 def run_feature_generation(args):
     global bamfile_name, windowsize
-    windowsize = args.window_size
+    windowsize_list = args.window_size
+    windowsize_list.sort(reverse=True)
+
     Id = args.file
     output_file = args.output_file
-    output = open(output_file, 'w')
     jobs = 1
 
     if args.jobs:
         jobs = args.jobs
 
-    bamfile_name = Id
-    w_list = get_bam_characteristics(jobs, Id, output)
     file_name, ending = output_file.rsplit('.', 1)
-    with open(file_name + '_window_distribution.' + ending, 'w') as f:
-        f.write("\t".join(w_list))
-    output.close()
+    distribution_file = open(file_name + '_window_distribution.' + ending, 'w')
+    output = open(output_file, 'w')
+    features = get_header(windowsize_list)
+    output.write('\t'.join(features))
+    output.write('\n')
+
+    bamfile_name = Id
+    w_list, feature_list = get_bam_characteristics(jobs, Id, windowsize_list)
+    distribution_file.write("\t".join(w_list))
+    distribution_file.write('\n')
+    output.write("\t".join(feature_list))
+    output.write('\n')
