@@ -129,8 +129,12 @@ def run_prediction(args):
         plot_hist(output + 'prediction_annotation', probability, classes)
 
     file = open(output + 'prediction_probabilities.tsv', 'w')
+    critical = open(output + 'critical_predictions.tsv', 'w')
     file.write('cell\tprediction\tprobability\n')
+    critical.write('cell\tprobability\n')
     for i in range(len(names)):
         file.write(names[i] + '\t' + str(prediction[i]) + '\t' + str(round(probability[i], 4)) + '\n')
+        if 0.3 < probability[i] < 0.7:
+            critical.write(names[i] + '\t' + str(round(probability[i], 4)) + '\n')
 
     file.close()
