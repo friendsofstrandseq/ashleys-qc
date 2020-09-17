@@ -3,9 +3,9 @@
 import argparse
 import sys
 
-from src.ashleyslib.train_classification_model import add_training_parser
-from src.ashleyslib.feature_generation import add_features_parser
-from src.ashleyslib.prediction import add_prediction_parser
+from ashleyslib.train_classification_model import add_training_parser
+from ashleyslib.feature_generation import add_features_parser
+from ashleyslib.prediction import add_prediction_parser
 
 
 def parse_command_line():
