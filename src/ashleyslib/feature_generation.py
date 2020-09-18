@@ -103,54 +103,53 @@ def get_wc_composition(total_window_collection_wc, total_window_collection):
     return values, wc_difference, w_percentage_list, feature_list
 
 
-def get_read_features(chrom):
-    global bamfile_name, windowsize
+def get_read_features(chrom, bamfile_name, window_size):
     mapq_threshold = 10
 
     count_collection = Counter([])
     with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
         chromosomes = dict(zip(bamfile.references, bamfile.lengths))
         length = chromosomes.get(chrom)
-        stepsize = int(windowsize / 2)
+        step_size = int(window_size / 2)
 
         window_collection = Counter([])
         window_collection_wc = Counter([])
         neighbor_difference = []
 
         # count reads in each window of size stepsize
-        for i in range(0, length, stepsize):
+        for i in range(0, length, step_size):
             s = str(chrom) + str(i)
             window_collection.update({s:1})
             window_collection_wc.update({s: 1})
             window_collection_wc.update({s+'W': 1})
             window_collection_wc.update({s+'C': 1})
-            for read in bamfile.fetch(chrom, i, i+windowsize):
+            for read in bamfile.fetch(chrom, i, i+window_size):
                 window_collection.update({s:1})
                 if read.is_unmapped:
-                    if read.reference_start > i+stepsize or i == 0:
+                    if read.reference_start > i+step_size or i == 0:
                         count_collection.update({'unmapped': 1})
                     continue
                 # count all mapped reads
-                if read.reference_start > i + stepsize or i == 0:
+                if read.reference_start > i + step_size or i == 0:
                     count_collection.update({'mapped': 1})
                 if read.is_supplementary or read.is_secondary or read.is_qcfail:
-                    if read.reference_start > i + stepsize or i == 0:
+                    if read.reference_start > i + step_size or i == 0:
                         count_collection.update({'supplementary': 1})
                         window_collection_wc.update({s+'_supp': 1})
                     continue
                 if read.is_duplicate:
-                    if read.reference_start > i + stepsize or i == 0:
+                    if read.reference_start > i + step_size or i == 0:
                         count_collection.update({'duplicate': 1})
                     continue
                 if read.mapping_quality < mapq_threshold:
-                    if read.reference_start > i + stepsize or i == 0:
+                    if read.reference_start > i + step_size or i == 0:
                         count_collection.update({'mapping_quality': 1})
                     continue
                 if read.is_read2:
-                    if read.reference_start > i + stepsize or i == 0:
+                    if read.reference_start > i + step_size or i == 0:
                         count_collection.update({'read2': 1})
                     continue
-                if read.reference_start > i + stepsize or i == 0:
+                if read.reference_start > i + step_size or i == 0:
                     count_collection.update({'good': 1})
 
                 window_collection_wc.update({s: 1})
@@ -160,15 +159,14 @@ def get_read_features(chrom):
                     window_collection_wc.update({s+'C': 1})
 
             if not i == 0:
-                last_window = str(chrom) + str(i-stepsize)
+                last_window = str(chrom) + str(i-step_size)
                 diff = window_collection[last_window] - window_collection[s]
                 neighbor_difference.append(diff)
 
     return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
 
 
-def get_bam_characteristics(jobs, window_list):
-    global bamfile_name, windowsize
+def get_bam_characteristics(jobs, window_list, bamfile_name):
     # read a BAM file and return different features for windows of the chromosomes
     chromosome_list = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11',
                        'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21',
@@ -179,14 +177,15 @@ def get_bam_characteristics(jobs, window_list):
 
     # collections with different counts over all chromosomes
     for w_size in window_list:
-        windowsize = w_size
+        window_size = w_size
         total_count_collection = Counter([])
         total_window_collection = Counter([])
         total_window_collection_wc = Counter([])
         total_neighbor_difference = []
 
         p = Pool(jobs)
-        result = p.map(get_read_features, chromosome_list)
+        args_list = [(c, bamfile_name, window_size) for c in chromosome_list]
+        result = p.starmap(get_read_features, args_list)
 
         for r in result:
             # print(r)
@@ -230,7 +229,6 @@ def get_bam_characteristics(jobs, window_list):
 
 
 def run_feature_generation(args):
-    global bamfile_name, windowsize
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
 
@@ -250,7 +248,7 @@ def run_feature_generation(args):
 
     if os.path.isfile(path):
         bamfile_name = path
-        w_list, feature_list = get_bam_characteristics(jobs, windowsize_list)
+        w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name)
         distribution_file.write("\t".join(w_list))
         distribution_file.write('\n')
         output.write("\t".join(feature_list))
@@ -265,7 +263,7 @@ def run_feature_generation(args):
                 if name.endswith(extension):
                     next_cell = os.path.join(path, name)
                     bamfile_name = next_cell
-                    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list)
+                    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name)
                     distribution_file.write("\t".join(w_list))
                     distribution_file.write('\n')
                     output.write("\t".join(feature_list))
