@@ -172,7 +172,7 @@ def feature_importance(imp_file, iteration, imp_values):
 
 
 # create model (gradient boosting or support vector)
-def create_model(test, train, model, features, file, parameters, log_feature_imp, n, log_all_models, prediction_dataset, current_iteration):
+def create_model(test, train, model, features, log_file, parameters, log_feature_imp, n, log_all_models, prediction_dataset, current_iteration):
     global best_result, best_params, total_accuracy
 
     y_train = train['class'].values
@@ -197,18 +197,18 @@ def create_model(test, train, model, features, file, parameters, log_feature_imp
     total_accuracy += accuracy
     log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(sensitivity, 4)) + '\t' + str(round(specificity, 4))
                          + '\t' + str(wrong) + '\n')
-    # file.write('prediction_[] = ' + str(prediction) + '\ny_test_[] = ' + str(y_test) + '\n')
+    # log_file.write('prediction_[] = ' + str(prediction) + '\ny_test_[] = ' + str(y_test) + '\n')
 
     if best_result < accuracy:
         best_result = accuracy
         best_params = params
-        # file.write('prediction:\n' + str(prediction) + '\ny_test:\n' + str(y_test))
-        file.write('\nnew best parameter combination: ' + str(best_params) + ' with accuracy: ' + str(best_result))
-        file.write('\nsensitivity: {}, specificity: {}, precision: {}\n'.format(sensitivity, specificity, precision))
-        file.write('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
+        # log_file.write('prediction:\n' + str(prediction) + '\ny_test:\n' + str(y_test))
+        log_file.write('\nnew best parameter combination: ' + str(best_params) + ' with accuracy: ' + str(best_result))
+        log_file.write('\nsensitivity: {}, specificity: {}, precision: {}\n'.format(sensitivity, specificity, precision))
+        log_file.write('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
                    + ' true negatives: ' + str(tn) + '\n\n')
         if model == 'gb':
-            file.write('feature importance: {}\n\n'.format(feature_imp))
+            log_file.write('feature importance: {}\n\n'.format(feature_imp))
 
     return wrong, samples_test, correct
 
@@ -238,7 +238,7 @@ def create_gb(x_train, y_train, parameters):
 
 
 # create an output file listing all samples that were wrongly predicted
-def outfile_wrong_predictions(wrong, correct, samples, file, file_correct):
+def outfile_wrong_predictions(wrong, correct, samples, output_file, file_correct):
     dict_wrong = dict()
     dict_correct = dict()
     samples_tested = dict()
@@ -265,11 +265,11 @@ def outfile_wrong_predictions(wrong, correct, samples, file, file_correct):
             else:
                 dict_correct[c] = 1
 
-    file.write('samples\twrong_predictions\ttested\tpercentage\n')
+    output_file.write('samples\twrong_predictions\ttested\tpercentage\n')
     file_correct.write('samples\tpredictions\n')
 
     for key, value in sorted(dict_wrong.items()):
-        file.write(str(key) + '\t' + str(value) + '\t' + str(samples_tested[key]) + '\t' +
+        output_file.write(str(key) + '\t' + str(value) + '\t' + str(samples_tested[key]) + '\t' +
                    str(round(value/samples_tested[key] * 100, 2)) + '\n')
     for key, value in sorted(dict_correct.items()):
         file_correct.write(str(key) + '\t' + str(value) + '\n')
@@ -310,7 +310,7 @@ def run_model_training(args):
     # dataset = filter_low_read_counts(dataset)
 
     print(dataset.shape)
-    file = open(output, 'w')
+    output_file = open(output, 'w')
     log_name = output.split('.tsv')
     file_correct = open(log_name[0] + '_correct.tsv', 'w')
 
@@ -365,13 +365,13 @@ def run_model_training(args):
 
     prediction_dataset.to_csv(log_name[0] + '_prediction.tsv', sep='\t', index=False)
 
-    outfile_wrong_predictions(wrong_predictions, correct_predictions, samples_tested, file, file_correct)
+    outfile_wrong_predictions(wrong_predictions, correct_predictions, samples_tested, output_file, file_correct)
     log_file.write('\nmean accuracy: ' + str(total_accuracy/num))
 
     end_time = time()
     log_file.write('\ntime needed for model creation and prediction: ' + str(end_time - start_time))
 
-    file.close()
+    output_file.close()
     file_correct.close()
     log_file.close()
     log_all_models.close()
