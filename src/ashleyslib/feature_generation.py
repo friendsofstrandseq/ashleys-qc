@@ -10,7 +10,8 @@ import re
 
 def add_features_parser(subparsers):
     parser = subparsers.add_parser('features', help='create features for bam files')
-    parser.add_argument('--jobs', '-j', help="the number of jobs used to generate features", type=int)
+    parser.add_argument('--jobs', '-j', help="the number of jobs used to generate features, default: 1", type=int,
+                        default=1)
     parser.add_argument('--file', '-f', required=True,
                         help='the name of the bam file to analyze or a directory where all bam files are processed')
     parser.add_argument('--window_size', '-w', help='window size for feature generation', type=int, required=True,
@@ -21,6 +22,9 @@ def add_features_parser(subparsers):
                         required=False, default='.bam')
     parser.add_argument('--mapping_quality', '-mq', help='threshold for minimal mapping quality required, default:10',
                         required=False, default=10, type=int)
+    parser.add_argument('--recursive_collect', dest='recursive', action='store_true', default=False, required=False,
+                        help='collecting bam files from entire folder hierarchy, default: only collecting bam files '
+                             'from current folder')
 
     parser.set_defaults(execute=run_feature_generation)
 
@@ -230,6 +234,14 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
     return w_percentage_list, feature_list
 
 
+def collect_features(jobs, windowsize_list, bamfile, mapq_threshold, output, distribution_file):
+    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile, mapq_threshold)
+    distribution_file.write("\t".join(w_list))
+    distribution_file.write('\n')
+    output.write("\t".join(feature_list))
+    output.write('\n')
+
+
 def run_feature_generation(args):
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
@@ -237,10 +249,6 @@ def run_feature_generation(args):
 
     path = args.file
     output_file = args.output_file
-    jobs = 1
-
-    if args.jobs:
-        jobs = args.jobs
 
     file_name, ending = output_file.rsplit('.', 1)
     distribution_file = open(file_name + '_window_distribution.' + ending, 'w')
@@ -250,23 +258,24 @@ def run_feature_generation(args):
     output.write('\n')
 
     if os.path.isfile(path):
-        bamfile_name = path
-        w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name, mapq_threshold)
-        distribution_file.write("\t".join(w_list))
-        distribution_file.write('\n')
-        output.write("\t".join(feature_list))
-        output.write('\n')
+        collect_features(args.jobs, windowsize_list, path, mapq_threshold, output, distribution_file)
 
     else:
         extension = args.bam_extension
-        for path, subdirs, files in os.walk(path):
-            for name in files:
+        if not args.recursive:
+            for name in os.listdir(path):
                 if not name.endswith(extension):
                     continue
                 next_cell = os.path.join(path, name)
-                bamfile_name = next_cell
-                w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name, mapq_threshold)
-                distribution_file.write("\t".join(w_list))
-                distribution_file.write('\n')
-                output.write("\t".join(feature_list))
-                output.write('\n')
+                collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file)
+
+        else:
+            for root, subdirs, files in os.walk(path):
+                for name in files:
+                    if not name.endswith(extension):
+                        continue
+                    next_cell = os.path.join(root, name)
+                    collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file)
+
+    output.close()
+    distribution_file.close()
