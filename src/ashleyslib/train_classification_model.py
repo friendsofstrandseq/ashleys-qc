@@ -11,15 +11,6 @@ from time import time
 import pickle
 
 
-best_params = dict()
-best_result = 0
-cv_runs = 5
-n_jobs = 20
-feature_imp = []
-roc_count = 0
-total_accuracy = 0
-
-
 def add_training_parser(subparsers):
     parser = subparsers.add_parser('train', help='train new classification model')
     parser.add_argument('--iterations', '-i', default=50, required=False, type=int,
@@ -172,8 +163,8 @@ def feature_importance(imp_file, iteration, imp_values):
 
 
 # create model (gradient boosting or support vector)
-def create_model(test, train, model, features, log_file, parameters, log_feature_imp, n, log_all_models, prediction_dataset, current_iteration):
-    global best_result, best_params, total_accuracy
+def create_model(test, train, model, features, log_file, parameters, log_feature_imp, n, log_all_models,
+                 prediction_dataset, current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs):
 
     y_train = train['class'].values
     y_train = y_train.astype('int')
@@ -184,10 +175,10 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
     samples_test = test.ix[:, 'sample_name'].values
 
     if model == 'gb':
-        clf = create_gb(x_train, y_train, parameters)
+        clf, feature_imp = create_gb(x_train, y_train, parameters, cv_runs, n_jobs)
         feature_importance(log_feature_imp, n, feature_imp)
     else:
-        clf = create_svc(x_train, y_train, parameters)
+        clf = create_svc(x_train, y_train, parameters, cv_runs, n_jobs)
 
     prediction = clf.predict_proba(x_test)[:, 1]  # prediction probabilities
     # prediction = clf.predict(x_test)  # predicted class
@@ -210,11 +201,11 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
         if model == 'gb':
             log_file.write('feature importance: {}\n\n'.format(feature_imp))
 
-    return wrong, samples_test, correct
+    return wrong, samples_test, correct, best_result, best_params, total_accuracy
 
 
 # performing grid search with support vector classifier based on specified parameters
-def create_svc(x_train, y_train, parameters):
+def create_svc(x_train, y_train, parameters, cv_runs, n_jobs):
     # note: usage of linear kernel may lead to divergence
     svc = svm.SVC(random_state=2, kernel='rbf')
     clf = GridSearchCV(svc, parameters, cv=cv_runs, n_jobs=n_jobs)
@@ -225,8 +216,7 @@ def create_svc(x_train, y_train, parameters):
 
 
 # performing grid search with gradient boosting classifier based on specified parameters in json file
-def create_gb(x_train, y_train, parameters):
-    global feature_imp
+def create_gb(x_train, y_train, parameters, cv_runs, n_jobs):
 
     gbc = ensemble.GradientBoostingClassifier(random_state=2)
     clf = GridSearchCV(gbc, parameters, cv=cv_runs, n_jobs=n_jobs)
@@ -234,7 +224,7 @@ def create_gb(x_train, y_train, parameters):
 
     feature_imp = clf.best_estimator_.feature_importances_
 
-    return clf
+    return clf, feature_imp
 
 
 # create an output file listing all samples that were wrongly predicted
@@ -291,7 +281,6 @@ def run_model_training(args):
     annotation_file = args.annotation
 
     test_flag = False
-    roc_count = 0
 
     with open(annotation_file) as f:
         annotation = [line.rstrip() for line in f]
@@ -335,6 +324,10 @@ def run_model_training(args):
     else:
         log_file.write('running ' + str(num) + ' iterations creating gradient boosting classifiers: \n\n')
 
+    total_accuracy = 0
+    best_params = dict()
+    best_result = 0
+
     for n in range(num):
         print('current iteration: ' + str(n))
         current_iteration = n
@@ -345,18 +338,20 @@ def run_model_training(args):
             test = test_data
 
         if svc_model:
-            wrong, samples, correct = create_model(test, train, 'svc', features, log_file, params, log_feature_imp, n,
-                                                   log_all_models, prediction_dataset, current_iteration)
+            wrong, samples, correct, best_result, best_params, total_accuracy = create_model(test, train, 'svc',
+                                features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
+                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs)
         else:
-            wrong, samples, correct = create_model(test, train, 'gb', features, log_file, params, log_feature_imp, n,
-                                                   log_all_models, prediction_dataset, current_iteration)
+            wrong, samples, correct, best_result, best_params, total_accuracy = create_model(test, train, 'gb',
+                                features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
+                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs)
         wrong_predictions.append(wrong)
         correct_predictions.append(correct)
         samples_tested.append(samples)
 
     y = dataset['class'].values
     x = dataset.iloc[:, 1:features+1].values
-    final_clf = create_gb(x, y, params)
+    final_clf, feature_imp = create_gb(x, y, params, cv_runs, n_jobs)
     log_file.write('Final model\nfeature importance: {}\n\n'.format(feature_imp))
 
     # save final model
