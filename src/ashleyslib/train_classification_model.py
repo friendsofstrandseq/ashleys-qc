@@ -172,7 +172,7 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
 
     x_train = train.iloc[:, 1:features+1].values
     x_test = test.iloc[:, 1:features+1].values
-    samples_test = test.ix[:, 'sample_name'].values
+    samples_test = test.loc[:, 'sample_name'].values
 
     if model == 'gb':
         clf, feature_imp = create_gb(x_train, y_train, parameters, cv_runs, n_jobs)
