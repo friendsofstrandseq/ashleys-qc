@@ -5,6 +5,7 @@ from multiprocessing import Pool
 from collections import Counter
 import statistics
 import os
+import re
 
 
 def add_features_parser(subparsers):
@@ -73,16 +74,17 @@ def get_wc_composition(total_window_collection_wc, total_window_collection):
 
     for i in sorted(window_dict.keys()):
         # calculate wc composition of whole sample dependent on percentage of w strands in windows
-        if total_window_collection_wc[i] > 1:
-            w_percentage = (total_window_collection_wc[i+'W'] - 1)/(total_window_collection_wc[i] - 1)
-            w_percentage_list.append(str(w_percentage))
-            for j in cuts:
-                if j <= w_percentage < j+0.1:
-                    c = 'W' + str(int((j+0.1)*100))
-                    wc_collection.update({c: 1})
-                    total += 1
-                    current_window = j
-            if w_percentage >= 1:
+        if total_window_collection_wc[i] <= 1:
+            continue
+        w_percentage = (total_window_collection_wc[i+'W'] - 1)/(total_window_collection_wc[i] - 1)
+        w_percentage_list.append(str(w_percentage))
+        for j in cuts:
+            if j <= w_percentage < j+0.1:
+                c = 'W' + str(int((j+0.1)*100))
+                wc_collection.update({c: 1})
+                total += 1
+                current_window = j
+            elif w_percentage >= 1:
                 c = 'W' + str(int(100))
                 wc_collection.update({c: 1})
                 total += 1
@@ -261,11 +263,12 @@ def run_feature_generation(args):
         extension = args.bam_extension
         for path, subdirs, files in os.walk(path):
             for name in files:
-                if name.endswith(extension):
-                    next_cell = os.path.join(path, name)
-                    bamfile_name = next_cell
-                    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name, mapq_threshold)
-                    distribution_file.write("\t".join(w_list))
-                    distribution_file.write('\n')
-                    output.write("\t".join(feature_list))
-                    output.write('\n')
+                if not name.endswith(extension):
+                    continue
+                next_cell = os.path.join(path, name)
+                bamfile_name = next_cell
+                w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name, mapq_threshold)
+                distribution_file.write("\t".join(w_list))
+                distribution_file.write('\n')
+                output.write("\t".join(feature_list))
+                output.write('\n')

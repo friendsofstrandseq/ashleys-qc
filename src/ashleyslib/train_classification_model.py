@@ -54,9 +54,10 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
     insert_column = [-1] * rows
     all_names = prediction_dataset['name'].values
     for n, i in zip(all_names, range(rows)):
-        if n in names:
-            pred = prediction[list(names).index(n)]
-            insert_column[i] = round(pred, 4)
+        if n not in names:
+            continue
+        pred = prediction[list(names).index(n)]
+        insert_column[i] = round(pred, 4)
     prediction_dataset['i' + str(current_iteration)] = insert_column
 
     zero_one_prediction = []
@@ -325,7 +326,7 @@ def run_model_training(args):
         log_file.write('running ' + str(num) + ' iterations creating gradient boosting classifiers: \n\n')
 
     total_accuracy = 0
-    best_params = dict()
+    best_params = {}
     best_result = 0
 
     for n in range(num):
