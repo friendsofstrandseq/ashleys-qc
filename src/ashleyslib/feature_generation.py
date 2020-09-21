@@ -16,7 +16,10 @@ def add_features_parser(subparsers):
                         nargs='+')
     parser.add_argument('--output_plot', '-p', help='create plot showing wc feature distribution', required=False)
     parser.add_argument('--output_file', '-o', help='name of output file, should be .tsv', required=True)
-    parser.add_argument('--bam_extension', '-e', help='specify extension of files used for, default .bam')
+    parser.add_argument('--bam_extension', '-e', help='specify extension of files used for, default .bam',
+                        required=False, default='.bam')
+    parser.add_argument('--mapping_quality', '-mq', help='threshold for minimal mapping quality required, default:10',
+                        required=False, default=10, type=int)
 
     parser.set_defaults(execute=run_feature_generation)
 
@@ -103,8 +106,7 @@ def get_wc_composition(total_window_collection_wc, total_window_collection):
     return values, wc_difference, w_percentage_list, feature_list
 
 
-def get_read_features(chrom, bamfile_name, window_size):
-    mapq_threshold = 10
+def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
 
     count_collection = Counter([])
     with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
@@ -166,7 +168,7 @@ def get_read_features(chrom, bamfile_name, window_size):
     return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
 
 
-def get_bam_characteristics(jobs, window_list, bamfile_name):
+def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
     # read a BAM file and return different features for windows of the chromosomes
     chromosome_list = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11',
                        'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21',
@@ -184,7 +186,7 @@ def get_bam_characteristics(jobs, window_list, bamfile_name):
         total_neighbor_difference = []
 
         p = Pool(jobs)
-        args_list = [(c, bamfile_name, window_size) for c in chromosome_list]
+        args_list = [(c, bamfile_name, window_size, mapq_threshold) for c in chromosome_list]
         result = p.starmap(get_read_features, args_list)
 
         for r in result:
@@ -231,6 +233,7 @@ def get_bam_characteristics(jobs, window_list, bamfile_name):
 def run_feature_generation(args):
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
+    mapq_threshold = args.mapping_quality
 
     path = args.file
     output_file = args.output_file
@@ -248,22 +251,20 @@ def run_feature_generation(args):
 
     if os.path.isfile(path):
         bamfile_name = path
-        w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name)
+        w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name, mapq_threshold)
         distribution_file.write("\t".join(w_list))
         distribution_file.write('\n')
         output.write("\t".join(feature_list))
         output.write('\n')
 
     else:
-        extension = '.bam'
-        if args.bam_extension is not None:
-            extension = args.bam_extension
+        extension = args.bam_extension
         for path, subdirs, files in os.walk(path):
             for name in files:
                 if name.endswith(extension):
                     next_cell = os.path.join(path, name)
                     bamfile_name = next_cell
-                    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name)
+                    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile_name, mapq_threshold)
                     distribution_file.write("\t".join(w_list))
                     distribution_file.write('\n')
                     output.write("\t".join(feature_list))
