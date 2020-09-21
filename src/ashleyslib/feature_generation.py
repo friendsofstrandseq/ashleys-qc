@@ -192,7 +192,6 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
         result = p.starmap(get_read_features, args_list)
 
         for r in result:
-            # print(r)
             total_count_collection += r[1]
             total_window_collection += r[2]
             total_window_collection_wc += r[3]
@@ -201,7 +200,6 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
         values, wc_difference, w_percentage_list, next_features = get_wc_composition(total_window_collection_wc,
                                                                                      total_window_collection)
 
-        # print_statistics(wc_difference, True)
         statistics_features = get_statistics(values, False)
         neighbor_features = get_statistics(total_neighbor_difference, False)
         feature_list = feature_list + next_features + statistics_features + neighbor_features

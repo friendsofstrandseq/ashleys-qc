@@ -115,7 +115,6 @@ def filter_low_read_counts(dataset):
     mean = statistics.mean(total_windows)
     stdev = statistics.stdev(total_windows)
     cut = 23000  # mean - stdev
-    print(cut)
     index_names = dataset[dataset['total_0.2mb'] < cut].index
     dataset.drop(index_names, inplace=True)
     return dataset
@@ -299,14 +298,12 @@ def run_model_training(args):
     dataset, prediction_dataset = add_class_column(dataset, annotation)
     # dataset = filter_low_read_counts(dataset)
 
-    print(dataset.shape)
     output_file = open(output, 'w')
     log_name = output.split('.tsv')
     file_correct = open(log_name[0] + '_correct.tsv', 'w')
 
     if features is None:
         features = dataset.shape[1] - 2
-        print(features)
 
     log_file = open(log_name[0] + '_log.tsv', 'w')
     log_all_models = open(log_name[0] + '_model_log.tsv', 'w')

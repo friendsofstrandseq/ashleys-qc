@@ -21,16 +21,15 @@ def add_prediction_parser(subparsers):
     return subparsers
 
 
-def predict_model(model_name, output_name, features):
+def predict_model(model_name, features):
     with open(model_name, 'rb') as m:
         clf = pickle.load(m)
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
-    # plot_hist(output_name, probability, None)
     return prediction, probability
 
 
-def evaluate_prediction(probability, annotation, dataset):
+def evaluate_prediction(probability, annotation, dataset, output):
     names = dataset['sample_name'].values
     class_list = []
     with open(annotation) as f:
@@ -58,9 +57,10 @@ def evaluate_prediction(probability, annotation, dataset):
             else:
                 fp += 1
 
-    print('accuracy: ' + str((tp + tn)/(tp+tn+fp+fn)))
-    print('tp: ' + str(tp) + ', tn: ' + str(tn) + ', fp: ' + str(fp) + ', fn: ' + str(fn))
-    return class_list
+    with open(output + 'prediction_accuracy.tsv', 'w') as f:
+        f.write('accuracy: ' + str((tp + tn)/(tp+tn+fp+fn)) + '\n')
+        f.write('tp: ' + str(tp) + ', tn: ' + str(tn) + ', fp: ' + str(fp) + ', fn: ' + str(fn))
+    return
 
 
 def filter_low_read_counts(dataset):
@@ -84,19 +84,16 @@ def run_prediction(args):
     features = dataset.drop(columns=['sample_name'])
     names = dataset['sample_name'].values
 
-    # load model
-    prediction, probability = predict_model(model, output + 'prediction', features)
+    prediction, probability = predict_model(model, features)
 
     if filter_cells:
         names = np.concatenate((names, filtered_cells))
-        print(names)
         prediction_filtered = [0] * len(filtered_cells)
         prediction = np.concatenate((prediction, prediction_filtered))
         probability = np.concatenate((probability, prediction_filtered))
 
     if annotation is not None:
-        classes = evaluate_prediction(probability, annotation, dataset)
-        # plot_hist(output + 'prediction_annotation', probability, classes)
+        evaluate_prediction(probability, annotation, dataset, output)
 
     file = open(output + 'prediction_probabilities.tsv', 'w')
     critical = open(output + 'critical_predictions.tsv', 'w')
