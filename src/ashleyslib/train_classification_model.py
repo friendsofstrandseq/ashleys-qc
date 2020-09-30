@@ -164,7 +164,7 @@ def feature_importance(imp_file, iteration, imp_values):
 
 # create model (gradient boosting or support vector)
 def create_model(test, train, model, features, log_file, parameters, log_feature_imp, n, log_all_models,
-                 prediction_dataset, current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs):
+                 prediction_dataset, current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1):
 
     y_train = train['class'].values
     y_train = y_train.astype('int')
@@ -185,7 +185,9 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
     params = clf.best_params_
 
     sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong, correct = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
+    f1 = (2*tp)/(2*tp + fp + fn)
     total_accuracy += accuracy
+    total_f1 += f1
     log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(sensitivity, 4)) + '\t' + str(round(specificity, 4))
                          + '\t' + str(wrong) + '\n')
     # log_file.write('prediction_[] = ' + str(prediction) + '\ny_test_[] = ' + str(y_test) + '\n')
@@ -195,6 +197,7 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
         best_params = params
         # log_file.write('prediction:\n' + str(prediction) + '\ny_test:\n' + str(y_test))
         log_file.write('\nnew best parameter combination: ' + str(best_params) + ' with accuracy: ' + str(best_result))
+        log_file.write(' and F1 score: ' + str(f1))
         log_file.write('\nsensitivity: {}, specificity: {}, precision: {}\n'.format(sensitivity, specificity, precision))
         log_file.write('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
                    + ' true negatives: ' + str(tn) + '\n\n')
@@ -323,6 +326,7 @@ def run_model_training(args):
         log_file.write('running ' + str(num) + ' iterations creating gradient boosting classifiers: \n\n')
 
     total_accuracy = 0
+    total_f1 = 0
     best_params = {}
     best_result = 0
 
@@ -338,11 +342,11 @@ def run_model_training(args):
         if svc_model:
             wrong, samples, correct, best_result, best_params, total_accuracy = create_model(test, train, 'svc',
                                 features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
-                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs)
+                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1)
         else:
             wrong, samples, correct, best_result, best_params, total_accuracy = create_model(test, train, 'gb',
                                 features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
-                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs)
+                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1)
         wrong_predictions.append(wrong)
         correct_predictions.append(correct)
         samples_tested.append(samples)
@@ -360,6 +364,7 @@ def run_model_training(args):
 
     outfile_wrong_predictions(wrong_predictions, correct_predictions, samples_tested, output_file, file_correct)
     log_file.write('\nmean accuracy: ' + str(total_accuracy/num))
+    log_file.write('\nmean F1 score: ' + str(total_f1 / num))
 
     end_time = time()
     log_file.write('\ntime needed for model creation and prediction: ' + str(end_time - start_time))

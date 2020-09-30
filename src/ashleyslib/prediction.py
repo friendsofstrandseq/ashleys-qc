@@ -59,6 +59,7 @@ def evaluate_prediction(probability, annotation, dataset, output):
 
     with open(output + 'prediction_accuracy.tsv', 'w') as f:
         f.write('accuracy: ' + str((tp + tn)/(tp+tn+fp+fn)) + '\n')
+        f.write('F1 score: ' + str((2*tp)/(2*tp + fp + fn)) + '\n')
         f.write('tp: ' + str(tp) + ', tn: ' + str(tn) + ', fp: ' + str(fp) + ', fn: ' + str(fn))
     return
 
