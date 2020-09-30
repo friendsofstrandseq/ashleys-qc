@@ -4,6 +4,7 @@
 import pandas as pd
 import numpy as np
 import pickle
+from ashleyslib.train_classification_model import get_relative_features
 
 
 def add_prediction_parser(subparsers):
@@ -14,6 +15,7 @@ def add_prediction_parser(subparsers):
     parser.add_argument('--annotation', '-a', help='path to folder with annotation files', required=False)
     parser.add_argument('--filter', dest='filter', action='store_true')
     parser.add_argument('--no-filter', dest='filter', action='store_false')
+    parser.add_argument('--relative', dest='relative', action='store_true', default=False, required=False, help='using only relative features')
     parser.set_defaults(filter=False)
 
     parser.set_defaults(execute=run_prediction)
@@ -80,7 +82,9 @@ def run_prediction(args):
     filter_cells = args.filter
 
     dataset = pd.read_csv(path, sep='\s+')
-    filtered_cells = filter_low_read_counts(dataset)
+    #filtered_cells = filter_low_read_counts(dataset)
+    if args.relative:
+        dataset = get_relative_features(dataset)
     features = dataset.drop(columns=['sample_name'])
     names = dataset['sample_name'].values
 

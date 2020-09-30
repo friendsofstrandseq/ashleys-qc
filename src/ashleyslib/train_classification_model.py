@@ -25,6 +25,7 @@ def add_training_parser(subparsers):
                         required=False, default=5, type=int)
     parser.add_argument('--n_jobs', '-n', help='number of jobs for grid search', required=False, default=20, type=int)
     parser.add_argument('--json', '-j', help='json file with the parameters for grid search', required=True)
+    parser.add_argument('--relative', dest='relative', action='store_true', default=False, required=False, help='using only relative features')
 
     model_parser = parser.add_mutually_exclusive_group(required=False)
     model_parser.add_argument('--svc', dest='classifier', action='store_true', help='runs support vector classification')
@@ -33,6 +34,29 @@ def add_training_parser(subparsers):
     parser.set_defaults(execute=run_model_training)
 
     return subparsers
+
+
+def get_relative_features(dataset):
+    feature_list = dataset.columns
+    filtered_list = ['unmap', 'map', 'supp', 'dup', 'mq', 'read2', 'good']
+    statistics_list = ['mean', 'stdev', 'n_mean', 'n_stdev']
+    for f in feature_list:
+        if f in filtered_list:
+            del dataset[f]
+            continue
+        elif not f.startswith('total_'):
+            continue
+       # for s in statistics_list:
+       #     col = f.replace('total', s)
+       #     dataset[col] = dataset[col] / dataset[f]
+        feature_values = dataset[f]
+        mean = statistics.mean(feature_values)
+        #mean = max(feature_values)
+          
+        dataset[f] = dataset[f] / mean
+        print(f)
+    print(dataset)
+    return dataset
 
 
 # evaluate model performance by comparing expected output and true output
@@ -294,9 +318,12 @@ def run_model_training(args):
         params = json.load(jfile)
 
     dataset = pd.read_csv(path, sep='\s+', header=0)
+    # dataset = filter_low_read_counts(dataset)
+    if args.relative:
+        dataset = get_relative_features(dataset)
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
-    # dataset = filter_low_read_counts(dataset)
+
 
     output_file = open(output, 'w')
     log_name = output.split('.tsv')
@@ -359,7 +386,8 @@ def run_model_training(args):
     prediction_dataset.to_csv(log_name[0] + '_prediction.tsv', sep='\t', index=False)
 
     outfile_wrong_predictions(wrong_predictions, correct_predictions, samples_tested, output_file, file_correct)
-    log_file.write('\nmean accuracy: ' + str(total_accuracy/num))
+    if num > 0:
+        log_file.write('\nmean accuracy: ' + str(total_accuracy/num))
 
     end_time = time()
     log_file.write('\ntime needed for model creation and prediction: ' + str(end_time - start_time))

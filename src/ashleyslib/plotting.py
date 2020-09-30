@@ -1,6 +1,7 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 
 def add_plotting_parser(subparsers):
@@ -60,9 +61,10 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
                 class_0.append(p)
             else:
                 class_1.append(p)
-        plt.hist(class_0, bins=40, alpha=0.8, label='Class 0')
-        plt.hist(class_1, bins=40, alpha=0.8, label='Class 1')
-        plt.legend(loc='upper left')
+        bins = np.linspace(0, 1, 50)
+        plt.hist(class_0, bins=bins, alpha=0.8, label='Class 0')
+        plt.hist(class_1, bins=bins, alpha=0.8, label='Class 1')
+        plt.legend(loc='upper center')
 
     else:
         plt.hist(probability, bins=30)

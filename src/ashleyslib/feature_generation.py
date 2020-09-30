@@ -194,6 +194,8 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
         p = Pool(jobs)
         args_list = [(c, bamfile_name, window_size, mapq_threshold) for c in chromosome_list]
         result = p.starmap(get_read_features, args_list)
+        p.close()
+        p.join()
 
         for r in result:
             total_count_collection += r[1]
