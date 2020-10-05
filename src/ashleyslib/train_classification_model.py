@@ -44,19 +44,17 @@ def get_relative_features(dataset):
     print(totals)
     for f in filtered_list:
         del dataset[f]
-    for s in statistics_list:
-        del dataset[s]
     for t in totals:
-       # for s in statistics_list:
-       #     col = t.replace('total', s)
-       #     dataset[col] = dataset[col] / dataset[t]
         feature_values = dataset[t]
-        mean = statistics.mean(feature_values)
-        #mean = max(feature_values)
-          
+        #mean = statistics.mean(feature_values)
+        mean = max(feature_values)
         dataset[t] = dataset[t] / mean
-        print(t)
-    print(dataset)
+
+        for s in statistics_list:
+            col = t.replace('total', s)
+            del dataset[col]
+       #     dataset[col] = dataset[col] / dataset[t]
+
     return dataset
 
 

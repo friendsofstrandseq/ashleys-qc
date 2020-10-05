@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from ashleyslib.train_classification_model import get_relative_features
 
 
 def add_plotting_parser(subparsers):
@@ -10,11 +11,68 @@ def add_plotting_parser(subparsers):
                         required=False)
     parser.add_argument('--annotation', '-a', help='annotation file for comparing predictions', required=False)
     parser.add_argument('--probabilities', '-p', help='file with prediction probabilities', required=False)
+    parser.add_argument('--feature_table', '-f', help='feature table of cells to plot', required=False)
+    parser.add_argument('--feature_list', '-l', help='list of features to plot', required=False)
     parser.add_argument('--output_file', '-o', help='name of output file', required=True)
+    parser.add_argument('--relative', dest='relative', action='store_true', default=False, required=False,
+                        help='using only relative features')
 
     parser.set_defaults(execute=run_plotting)
 
     return subparsers
+
+
+def plot_feature_range(feature_table, annotation, feature_list, output_file, relative):
+    features = pd.read_csv(feature_table, sep='\s+')
+    if relative:
+        features = get_relative_features(features)
+    for f in features['total_0.2mb']:
+        print(f)
+    if annotation is not None:
+        with open(annotation) as f:
+            annotation_list = [line.rstrip() for line in f]
+        ones_hist_table = features[features['sample_name'].isin(annotation_list)]
+        zeros_hist_table = features[~features['sample_name'].isin(annotation_list)]
+
+    rows, cols = features.shape
+    feature_range = []
+    for f in feature_list:
+        values = features[f]
+        feature_range.append((min(values), max(values)))
+
+    plt.clf()
+    fig, axs = plt.subplots(1, len(feature_list))
+    plt.subplots_adjust(hspace=0.35, wspace=0.25)
+
+    axis = range(len(feature_list))
+    in_list = np.arange(0, 2.04, 0.04)
+    for i in range(len(feature_list)):
+        #axs[axis[i]].set_xlim(feature_range[i][0], feature_range[i][1])
+        axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
+        print(feature_range[i][1])
+
+        bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
+        #bin_list = np.arange(feature_range[i][0], feature_range[i][1], feature_range[i][1]/50)
+        axs[axis[i]].set_ylim(0, rows/2)
+        if annotation is not None:
+            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=0.8, bins=bin_list, label='Class 0')
+            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=0.8, bins=bin_list, label='Class 1')
+        else:
+            axs[axis[i]].hist(features[feature_list[i]], bins=bin_list)
+        axs[axis[i]].set_title(feature_list[i])
+
+    axs[0].legend(loc='upper right', bbox_to_anchor=(1, 2.2), prop={'size': 10})
+
+    for ax in axs.flat:
+        ax.set_xlabel('Value')
+        ax.set_ylabel('Count')
+
+    #plt.show()
+    fig.set_size_inches(16, 6)
+    plt.savefig(output_file)
+    print(features.min(axis=0))
+    print(features.max(axis=0))
+    return
 
 
 def plot_wc_distribution(w_percentage_list, output_file):
@@ -84,5 +142,11 @@ def run_plotting(args):
         plot_wc_distribution(args.w_percentage, output)
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
+    if args.feature_table is not None:
+        #feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
+        feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
+        if args.feature_list is not None:
+            feature_list = args.feature_list
+        plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.relative)
 
     return

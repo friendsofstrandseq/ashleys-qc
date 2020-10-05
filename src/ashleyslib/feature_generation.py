@@ -176,9 +176,11 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
 
 def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
     # read a BAM file and return different features for windows of the chromosomes
-    chromosome_list = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11',
-                       'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21',
-                       'chr22', 'chrX']
+
+    with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
+        references = bamfile.references
+        chrom_re = re.compile("^(chr)?[0-9X]+$")
+        chromosome_list = [x for x in references if chrom_re.match(x)]
 
     filtered_list = ['unmapped', 'mapped', 'supplementary', 'duplicate', 'mapping_quality', 'read2', 'good']
     feature_list = []
