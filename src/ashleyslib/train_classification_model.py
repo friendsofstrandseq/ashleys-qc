@@ -40,21 +40,22 @@ def get_relative_features(dataset):
     feature_list = dataset.columns
     filtered_list = ['unmap', 'map', 'supp', 'dup', 'mq', 'read2', 'good']
     statistics_list = ['mean', 'stdev', 'n_mean', 'n_stdev']
-    for f in feature_list:
-        if f in filtered_list:
-            del dataset[f]
-            continue
-        elif not f.startswith('total_'):
-            continue
+    totals = [t for t in feature_list if 'total_' in t]
+    print(totals)
+    for f in filtered_list:
+        del dataset[f]
+    for s in statistics_list:
+        del dataset[s]
+    for t in totals:
        # for s in statistics_list:
-       #     col = f.replace('total', s)
-       #     dataset[col] = dataset[col] / dataset[f]
-        feature_values = dataset[f]
+       #     col = t.replace('total', s)
+       #     dataset[col] = dataset[col] / dataset[t]
+        feature_values = dataset[t]
         mean = statistics.mean(feature_values)
         #mean = max(feature_values)
           
-        dataset[f] = dataset[f] / mean
-        print(f)
+        dataset[t] = dataset[t] / mean
+        print(t)
     print(dataset)
     return dataset
 
@@ -326,7 +327,6 @@ def run_model_training(args):
         dataset = get_relative_features(dataset)
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
-
 
     output_file = open(output, 'w')
     log_name = output.split('.tsv')
