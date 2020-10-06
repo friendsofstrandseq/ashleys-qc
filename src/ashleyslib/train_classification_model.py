@@ -46,9 +46,7 @@ def get_relative_features(dataset):
         del dataset[f]
     for t in totals:
         feature_values = dataset[t]
-        #mean = statistics.mean(feature_values)
-        mean = max(feature_values)
-        dataset[t] = dataset[t] / mean
+        dataset[t] = dataset[t] / max(feature_values)
 
         for s in statistics_list:
             col = t.replace('total', s)
