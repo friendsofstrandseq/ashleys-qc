@@ -88,10 +88,10 @@ def get_wc_composition(total_window_collection_wc, total_window_collection):
                 wc_collection.update({c: 1})
                 total += 1
                 current_window = j
-            elif w_percentage >= 1:
-                c = 'W' + str(int(100))
-                wc_collection.update({c: 1})
-                total += 1
+        if w_percentage >= 1:
+            c = 'W' + str(int(100))
+            wc_collection.update({c: 1})
+            total += 1
         if not last_window == -1:
             wc_difference.append(last_window - current_window)
         last_window = current_window
