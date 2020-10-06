@@ -26,8 +26,7 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     features = pd.read_csv(feature_table, sep='\s+')
     if relative:
         features = get_relative_features(features)
-    for f in features['total_0.2mb']:
-        print(f)
+
     if annotation is not None:
         with open(annotation) as f:
             annotation_list = [line.rstrip() for line in f]
@@ -49,7 +48,6 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     for i in range(len(feature_list)):
         #axs[axis[i]].set_xlim(feature_range[i][0], feature_range[i][1])
         axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
-        print(feature_range[i][1])
 
         bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
         #bin_list = np.arange(feature_range[i][0], feature_range[i][1], feature_range[i][1]/50)
@@ -61,7 +59,7 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
             axs[axis[i]].hist(features[feature_list[i]], bins=bin_list)
         axs[axis[i]].set_title(feature_list[i])
 
-    axs[0].legend(loc='upper right', bbox_to_anchor=(1, 2.2), prop={'size': 10})
+    axs[0].legend(loc='upper right')
 
     for ax in axs.flat:
         ax.set_xlabel('Value')
@@ -70,8 +68,6 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     #plt.show()
     fig.set_size_inches(16, 6)
     plt.savefig(output_file)
-    print(features.min(axis=0))
-    print(features.max(axis=0))
     return
 
 
