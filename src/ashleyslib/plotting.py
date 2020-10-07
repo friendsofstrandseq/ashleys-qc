@@ -16,22 +16,34 @@ def add_plotting_parser(subparsers):
     parser.add_argument('--output_file', '-o', help='name of output file', required=True)
     parser.add_argument('--relative', dest='relative', action='store_true', default=False, required=False,
                         help='using only relative features')
+    parser.add_argument('--compare', '-c', help='plot feature list and compare it to those features', required=False)
+    parser.add_argument('--compare_annotation', '-ca', help='annotation file for comparing data', required=False)
 
     parser.set_defaults(execute=run_plotting)
 
     return subparsers
 
 
-def plot_feature_range(feature_table, annotation, feature_list, output_file, relative):
+def plot_feature_range(feature_table, annotation, feature_list, output_file, relative, compare, compare_annotation):
     features = pd.read_csv(feature_table, sep='\s+')
+    alpha = 0.8
+    if compare is not None:
+        compare_features = pd.read_csv(compare, sep='\s+')
     if relative:
         features = get_relative_features(features)
+        if compare is not None:
+            compare_features = get_relative_features(compare_features)
 
     if annotation is not None:
         with open(annotation) as f:
             annotation_list = [line.rstrip() for line in f]
         ones_hist_table = features[features['sample_name'].isin(annotation_list)]
         zeros_hist_table = features[~features['sample_name'].isin(annotation_list)]
+        if compare_annotation is not None:
+            with open(compare_annotation) as c:
+                compare_annotation_list = [line.rstrip() for line in c]
+            compare_ones = compare_features[compare_features['sample_name'].isin(compare_annotation_list)]
+            compare_zeroes = compare_features[~compare_features['sample_name'].isin(compare_annotation_list)]
 
     rows, cols = features.shape
     feature_range = []
@@ -48,15 +60,29 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     for i in range(len(feature_list)):
         #axs[axis[i]].set_xlim(feature_range[i][0], feature_range[i][1])
         axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
-
+        #axs[axis[i]].set_xlim(0, 0.2)
         bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
         #bin_list = np.arange(feature_range[i][0], feature_range[i][1], feature_range[i][1]/50)
+        #bin_list = np.arange(0, 0.2, 0.002)
         axs[axis[i]].set_ylim(0, rows/2)
         if annotation is not None:
-            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=0.8, bins=bin_list, label='Class 0')
-            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=0.8, bins=bin_list, label='Class 1')
+            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Training - class 0',
+                              color='C0')
+            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Training - class 1',
+                              color='C1')
+            if compare_annotation is not None:
+                axs[axis[i]].hist(compare_ones[feature_list[i]], alpha=alpha, bins=bin_list,
+                                  label='Prediction data - class 1', color='C2')
+                axs[axis[i]].hist(compare_zeroes[feature_list[i]], alpha=alpha, bins=bin_list,
+                                  label='Prediction data - class 0', color='C3')
+            elif compare is not None:
+                axs[axis[i]].hist(compare_features[feature_list[i]], alpha=alpha, bins=bin_list, color='green',
+                                  label='Prediction data')
         else:
             axs[axis[i]].hist(features[feature_list[i]], bins=bin_list)
+            if compare is not None:
+                axs[axis[i]].hist(compare_features[feature_list[i]], alpha=alpha, bins=bin_list, color='green',
+                                  label='Prediction data')
         axs[axis[i]].set_title(feature_list[i])
 
     axs[0].legend(loc='upper right')
@@ -139,10 +165,11 @@ def run_plotting(args):
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
     if args.feature_table is not None:
-        #feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
+        # feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
         feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
         if args.feature_list is not None:
             feature_list = args.feature_list
-        plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.relative)
+        plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.relative, args.compare,
+                           args.compare_annotation)
 
     return
