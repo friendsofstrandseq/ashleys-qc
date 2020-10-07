@@ -225,7 +225,7 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
         if model == 'gb':
             log_file.write('feature importance: {}\n\n'.format(feature_imp))
 
-    return wrong, samples_test, correct, best_result, best_params, total_accuracy
+    return wrong, samples_test, correct, best_result, best_params, total_accuracy, total_f1
 
 
 # performing grid search with support vector classifier based on specified parameters
@@ -363,11 +363,11 @@ def run_model_training(args):
             test = test_data
 
         if svc_model:
-            wrong, samples, correct, best_result, best_params, total_accuracy = create_model(test, train, 'svc',
+            wrong, samples, correct, best_result, best_params, total_accuracy, total_f1 = create_model(test, train, 'svc',
                                 features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
                                 current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1)
         else:
-            wrong, samples, correct, best_result, best_params, total_accuracy = create_model(test, train, 'gb',
+            wrong, samples, correct, best_result, best_params, total_accuracy, total_f1 = create_model(test, train, 'gb',
                                 features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
                                 current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1)
         wrong_predictions.append(wrong)
