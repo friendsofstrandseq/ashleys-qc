@@ -25,6 +25,8 @@ def add_features_parser(subparsers):
     parser.add_argument('--recursive_collect', dest='recursive', action='store_true', default=False, required=False,
                         help='collecting bam files from entire folder hierarchy, default: only collecting bam files '
                              'from current folder')
+    parser.add_argument('--chromosomes', '-c', help='regex expression specifying chromosomes to use for feature '
+                                                    'generation, default: chromosomes 1-22, X')
 
     parser.set_defaults(execute=run_feature_generation)
 
@@ -174,12 +176,12 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
     return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
 
 
-def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
+def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chromosomes):
     # read a BAM file and return different features for windows of the chromosomes
 
     with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
         references = bamfile.references
-        chrom_re = re.compile("^(chr)?[0-9X]+$")
+        chrom_re = re.compile(chromosomes)
         chromosome_list = [x for x in references if chrom_re.match(x)]
 
     filtered_list = ['unmapped', 'mapped', 'supplementary', 'duplicate', 'mapping_quality', 'read2', 'good']
@@ -238,8 +240,8 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold):
     return w_percentage_list, feature_list
 
 
-def collect_features(jobs, windowsize_list, bamfile, mapq_threshold, output, distribution_file):
-    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile, mapq_threshold)
+def collect_features(jobs, windowsize_list, bamfile, mapq_threshold, output, distribution_file, chromosomes):
+    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile, mapq_threshold, chromosomes)
     distribution_file.write("\t".join(w_list))
     distribution_file.write('\n')
     output.write("\t".join(feature_list))
@@ -260,9 +262,14 @@ def run_feature_generation(args):
     features = get_header(windowsize_list)
     output.write('\t'.join(features))
     output.write('\n')
+    
+    # chr1-22, chrX
+    chromosomes = "^(chr)?[0-9X]+$"
+    if args.chromosomes is not None:
+        chromosomes = args.chromosomes
 
     if os.path.isfile(path):
-        collect_features(args.jobs, windowsize_list, path, mapq_threshold, output, distribution_file)
+        collect_features(args.jobs, windowsize_list, path, mapq_threshold, output, distribution_file, chromosomes)
 
     else:
         extension = args.bam_extension
@@ -271,7 +278,8 @@ def run_feature_generation(args):
                 if not name.endswith(extension):
                     continue
                 next_cell = os.path.join(path, name)
-                collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file)
+                collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file,
+                                 chromosomes)
 
         else:
             for root, subdirs, files in os.walk(path):
@@ -279,7 +287,8 @@ def run_feature_generation(args):
                     if not name.endswith(extension):
                         continue
                     next_cell = os.path.join(root, name)
-                    collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file)
+                    collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file,
+                                     chromosomes)
 
     output.close()
     distribution_file.close()
