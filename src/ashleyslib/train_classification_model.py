@@ -352,13 +352,13 @@ def run_model_training(args):
     total_f1 = 0
     best_params = {}
     best_result = 0
+    sample_set = dataset
 
     for n in range(num):
         print('current iteration: ' + str(n))
         current_iteration = n
-        dataset = dataset.sample(frac=1, random_state=2)
-
-        test, train = train_test_split(dataset, test_flag)
+        sample_set = sample_set.sample(frac=1, random_state=2)
+        test, train = train_test_split(sample_set, test_flag)
         if test_flag:
             test = test_data
 
