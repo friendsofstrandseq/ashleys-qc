@@ -58,17 +58,16 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     axis = range(len(feature_list))
     in_list = np.arange(0, 2.04, 0.04)
     for i in range(len(feature_list)):
-        #axs[axis[i]].set_xlim(feature_range[i][0], feature_range[i][1])
         axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
-        #axs[axis[i]].set_xlim(0, 0.2)
         bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
-        #bin_list = np.arange(feature_range[i][0], feature_range[i][1], feature_range[i][1]/50)
-        #bin_list = np.arange(0, 0.2, 0.002)
         axs[axis[i]].set_ylim(0, rows/2)
+        #axs[axis[i]].set_xlim(0, 0.2)
+        #bin_list = np.arange(0, 0.2, 0.002)
+        #axs[axis[i]].set_ylim(0, 200)
         if annotation is not None:
-            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Training - class 0',
+            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Class 0',
                               color='C0')
-            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Training - class 1',
+            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Class 1',
                               color='C1')
             if compare_annotation is not None:
                 axs[axis[i]].hist(compare_ones[feature_list[i]], alpha=alpha, bins=bin_list,
@@ -165,7 +164,7 @@ def run_plotting(args):
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
     if args.feature_table is not None:
-        # feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
+        #feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
         feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
         if args.feature_list is not None:
             feature_list = args.feature_list

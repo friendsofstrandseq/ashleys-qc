@@ -47,10 +47,13 @@ def evaluate_prediction(probability, annotation, dataset, output):
     fp = 0
     tn = 0
     fn = 0
-    for p, c in zip(probability, class_list):
+    fn_cells = []
+    fp_cells = []
+    for p, c, n in zip(probability, class_list, names):
         if c == 1:
             if p < 0.5:
                 fn += 1
+                fn_cells.append(n)
             else:
                 tp += 1
         else:
@@ -58,8 +61,11 @@ def evaluate_prediction(probability, annotation, dataset, output):
                 tn += 1
             else:
                 fp += 1
+                fp_cells.append(n)
 
     with open(output + 'prediction_accuracy.tsv', 'w') as f:
+        f.write('false positive predictions: ' + str(fp_cells) + '\n')
+        f.write('false negative predictions: ' + str(fn_cells) + '\n')
         f.write('accuracy: ' + str((tp + tn)/(tp+tn+fp+fn)) + '\n')
         f.write('F1 score: ' + str((2*tp)/(2*tp + fp + fn)) + '\n')
         f.write('tp: ' + str(tp) + ', tn: ' + str(tn) + ', fp: ' + str(fp) + ', fn: ' + str(fn))
