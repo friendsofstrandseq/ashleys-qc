@@ -31,7 +31,7 @@ def predict_model(model_name, features):
     return prediction, probability
 
 
-def evaluate_prediction(probability, annotation, dataset, output):
+def evaluate_prediction(probability, annotation, dataset, output, critical_bound):
     names = dataset['sample_name'].values
     class_list = []
     with open(annotation) as f:
@@ -49,11 +49,15 @@ def evaluate_prediction(probability, annotation, dataset, output):
     fn = 0
     fn_cells = []
     fp_cells = []
+    fn_critical = []
+    fp_critical = []
     for p, c, n in zip(probability, class_list, names):
         if c == 1:
             if p < 0.5:
                 fn += 1
                 fn_cells.append(n)
+                if p > critical_bound[0]:
+                    fn_critical.append(n)
             else:
                 tp += 1
         else:
@@ -62,10 +66,14 @@ def evaluate_prediction(probability, annotation, dataset, output):
             else:
                 fp += 1
                 fp_cells.append(n)
+                if p < critical_bound[1]:
+                    fp_critical.append(n)
 
     with open(output + 'prediction_accuracy.tsv', 'w') as f:
         f.write('false positive predictions: ' + str(fp_cells) + '\n')
+        f.write('false positive and critical predictions: ' + str(fp_critical) + '\n')
         f.write('false negative predictions: ' + str(fn_cells) + '\n')
+        f.write('false negative and critical predictions: ' + str(fn_critical) + '\n')
         f.write('accuracy: ' + str((tp + tn)/(tp+tn+fp+fn)) + '\n')
         f.write('F1 score: ' + str((2*tp)/(2*tp + fp + fn)) + '\n')
         f.write('tp: ' + str(tp) + ', tn: ' + str(tn) + ', fp: ' + str(fp) + ', fn: ' + str(fn))
@@ -88,8 +96,8 @@ def run_prediction(args):
     annotation = args.annotation
     filter_cells = args.filter
 
+    critical_bound = (0.3, 0.7)
     dataset = pd.read_csv(path, sep='\s+')
-    #filtered_cells = filter_low_read_counts(dataset)
     if args.relative:
         dataset = get_relative_features(dataset)
     features = dataset.drop(columns=['sample_name'])
@@ -98,13 +106,14 @@ def run_prediction(args):
     prediction, probability = predict_model(model, features)
 
     if filter_cells:
+        filtered_cells = filter_low_read_counts(dataset)
         names = np.concatenate((names, filtered_cells))
         prediction_filtered = [0] * len(filtered_cells)
         prediction = np.concatenate((prediction, prediction_filtered))
         probability = np.concatenate((probability, prediction_filtered))
 
     if annotation is not None:
-        evaluate_prediction(probability, annotation, dataset, output)
+        evaluate_prediction(probability, annotation, dataset, output, critical_bound)
 
     file = open(output + 'prediction_probabilities.tsv', 'w')
     critical = open(output + 'critical_predictions.tsv', 'w')
@@ -112,7 +121,7 @@ def run_prediction(args):
     critical.write('cell\tprobability\n')
     for i in range(len(names)):
         file.write(names[i] + '\t' + str(prediction[i]) + '\t' + str(round(probability[i], 4)) + '\n')
-        if 0.3 < probability[i] < 0.7:
+        if critical_bound[0] < probability[i] < critical_bound[1]:
             critical.write(names[i] + '\t' + str(round(probability[i], 4)) + '\n')
 
     file.close()
