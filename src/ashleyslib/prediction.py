@@ -9,9 +9,11 @@ from ashleyslib.train_classification_model import get_relative_features
 
 def add_prediction_parser(subparsers):
     parser = subparsers.add_parser('predict', help='predict class probabilities for new cells')
-    parser.add_argument('--path', '-p', help='path to feature table of data that should be predicted', required=True)
+    parser.add_argument('--path', '-p', help='path to feature table of data that should be predicted', required=False)
+    parser.add_argument('--prediction_high', '-high', help='prediction file for high quality model', required=False)
+    parser.add_argument('--prediction_ok', '-ok', help='prediction file for ok quality model', required=False)
     parser.add_argument('--output', '-o', help='folder for output file', required=True)
-    parser.add_argument('--model', '-m', help='pkl model to use for prediction', required=True)
+    parser.add_argument('--model', '-m', help='pkl model to use for prediction', required=False)
     parser.add_argument('--annotation', '-a', help='path to folder with annotation files', required=False)
     parser.add_argument('--filter', dest='filter', action='store_true')
     parser.add_argument('--no-filter', dest='filter', action='store_false')
@@ -31,8 +33,33 @@ def predict_model(model_name, features):
     return prediction, probability
 
 
-def evaluate_prediction(probability, annotation, dataset, output, critical_bound):
-    names = dataset['sample_name'].values
+def compare_prediction(prediction_high, prediction_ok, annotation, output):
+    dataset_ok = pd.read_csv(prediction_ok, sep='\s+')
+    dataset_high = pd.read_csv(prediction_high, sep='\s+')
+    names = dataset_ok['cell'].values
+    probabilities_high = dataset_high['probability'].values
+    probabilities_ok = dataset_ok['probability'].values
+
+    combined_prediction = []
+    for p_high, p_ok in zip(probabilities_high, probabilities_ok):
+        if p_high < 0.5 and p_ok < 0.5:
+            combined_prediction.append(0)
+        elif p_high > 0.5:
+            combined_prediction.append(1)
+        else:
+            combined_prediction.append(0.5)
+
+    with open(output, 'w') as o:
+        o.write('cell\tcombined_prediction\n')
+        for n, p in zip(names, combined_prediction):
+            o.write(str(n) + '\t' + str(p) + '\n')
+
+    if annotation is not None:
+        evaluate_prediction(combined_prediction, annotation, names, output[:-4] + '_', (0.3, 0.7))
+    return
+
+
+def evaluate_prediction(probability, annotation, names, output, critical_bound):
     class_list = []
     with open(annotation) as f:
         annotation_list = [line.rstrip() for line in f]
@@ -96,6 +123,10 @@ def run_prediction(args):
     annotation = args.annotation
     filter_cells = args.filter
 
+    if args.prediction_high is not None:
+        compare_prediction(args.prediction_high, args.prediction_ok, annotation, output)
+        return
+
     critical_bound = (0.3, 0.7)
     dataset = pd.read_csv(path, sep='\s+')
     if args.relative:
@@ -113,7 +144,7 @@ def run_prediction(args):
         probability = np.concatenate((probability, prediction_filtered))
 
     if annotation is not None:
-        evaluate_prediction(probability, annotation, dataset, output, critical_bound)
+        evaluate_prediction(probability, annotation, names, output, critical_bound)
 
     file = open(output + 'prediction_probabilities.tsv', 'w')
     critical = open(output + 'critical_predictions.tsv', 'w')

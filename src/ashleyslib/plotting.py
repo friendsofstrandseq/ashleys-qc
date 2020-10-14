@@ -57,23 +57,26 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
 
     axis = range(len(feature_list))
     in_list = np.arange(0, 2.04, 0.04)
+    type = 'step'
     for i in range(len(feature_list)):
-        axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
-        bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
-        axs[axis[i]].set_ylim(0, rows/2)
-        #axs[axis[i]].set_xlim(0, 0.2)
-        #bin_list = np.arange(0, 0.2, 0.002)
-        #axs[axis[i]].set_ylim(0, 200)
+        #axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
+        #bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
+        #axs[axis[i]].set_ylim(0, rows/2)
+        axs[axis[i]].set_xlim(0, 0.2)
+        bin_list = np.arange(0, 0.2, 0.002)
+        axs[axis[i]].set_ylim(0, 100)
+        axs[axis[i]].spines['top'].set_visible(False)
+        axs[axis[i]].spines['right'].set_visible(False)
         if annotation is not None:
-            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Class 0',
-                              color='C0')
-            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='Class 1',
-                              color='C1')
+            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='hgsvc - Class 0',
+                              color='#fdae61')
+            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='hgsvc - Class 1',
+                              color='#d7191c')
             if compare_annotation is not None:
                 axs[axis[i]].hist(compare_ones[feature_list[i]], alpha=alpha, bins=bin_list,
-                                  label='Prediction data - class 1', color='C2')
+                                  label='nbt19 - class 1', color='#2c7bb6')
                 axs[axis[i]].hist(compare_zeroes[feature_list[i]], alpha=alpha, bins=bin_list,
-                                  label='Prediction data - class 0', color='C3')
+                                  label='nbt19 - class 0', color='#abd9e9')
             elif compare is not None:
                 axs[axis[i]].hist(compare_features[feature_list[i]], alpha=alpha, bins=bin_list, color='green',
                                   label='Prediction data')
@@ -164,8 +167,8 @@ def run_plotting(args):
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
     if args.feature_table is not None:
-        #feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
-        feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb', 'total_0.2mb']
+        feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb']#, 'total_0.2mb']
+        #feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb']#, 'total_0.2mb']
         if args.feature_list is not None:
             feature_list = args.feature_list
         plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.relative, args.compare,
