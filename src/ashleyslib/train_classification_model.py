@@ -9,6 +9,7 @@ import numpy as np
 import json
 from time import time
 import pickle
+import logging
 
 
 def add_training_parser(subparsers):
@@ -184,8 +185,8 @@ def feature_importance(imp_file, iteration, imp_values):
 
 
 # create model (gradient boosting or support vector)
-def create_model(test, train, model, features, log_file, parameters, log_feature_imp, n, log_all_models,
-                 prediction_dataset, current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1):
+def create_model(test, train, model, features, logging, parameters, feature_imp_file, n, log_all_models,
+                 prediction_dataset, current_iteration, total_accuracy, cv_runs, n_jobs, total_f1):
 
     y_train = train['class'].values
     y_train = y_train.astype('int')
@@ -197,7 +198,7 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
 
     if model == 'gb':
         clf, feature_imp = create_gb(x_train, y_train, parameters, cv_runs, n_jobs)
-        feature_importance(log_feature_imp, n, feature_imp)
+        feature_importance(feature_imp_file, n, feature_imp)
     else:
         clf = create_svc(x_train, y_train, parameters, cv_runs, n_jobs)
 
@@ -211,21 +212,14 @@ def create_model(test, train, model, features, log_file, parameters, log_feature
     total_f1 += f1
     log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(sensitivity, 4)) + '\t' + str(round(specificity, 4))
                          + '\t' + str(wrong) + '\n')
-    # log_file.write('prediction_[] = ' + str(prediction) + '\ny_test_[] = ' + str(y_test) + '\n')
 
-    if best_result < accuracy:
-        best_result = accuracy
-        best_params = params
-        # log_file.write('prediction:\n' + str(prediction) + '\ny_test:\n' + str(y_test))
-        log_file.write('\nnew best parameter combination: ' + str(best_params) + ' with accuracy: ' + str(best_result))
-        log_file.write(' and F1 score: ' + str(f1))
-        log_file.write('\nsensitivity: {}, specificity: {}, precision: {}\n'.format(sensitivity, specificity, precision))
-        log_file.write('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
+    logging.info('\nnew best parameter combination: ' + str(params) + ' with accuracy: ' + str(accuracy))
+    logging.info(' and F1 score: ' + str(f1))
+    logging.info('\nsensitivity: {}, specificity: {}, precision: {}\n'.format(sensitivity, specificity, precision))
+    logging.info('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
                    + ' true negatives: ' + str(tn) + '\n\n')
-        if model == 'gb':
-            log_file.write('feature importance: {}\n\n'.format(feature_imp))
 
-    return wrong, samples_test, correct, best_result, best_params, total_accuracy, total_f1
+    return wrong, samples_test, correct, total_accuracy, total_f1
 
 
 # performing grid search with support vector classifier based on specified parameters
@@ -306,6 +300,11 @@ def run_model_training(args):
 
     test_flag = False
 
+    output_file = open(output, 'w')
+    log_name = output.split('.tsv')
+    logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
+                      #  ,filename=log_name[0] + '.log')
+
     with open(annotation_file) as f:
         annotation = [line.rstrip() for line in f]
 
@@ -324,38 +323,33 @@ def run_model_training(args):
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
 
-    output_file = open(output, 'w')
-    log_name = output.split('.tsv')
     file_correct = open(log_name[0] + '_correct.tsv', 'w')
 
     if features is None:
         features = dataset.shape[1] - 2
 
-    log_file = open(log_name[0] + '_log.tsv', 'w')
     log_all_models = open(log_name[0] + '_model_log.tsv', 'w')
     log_feature_imp = open(log_name[0] + '_feature_imp.tsv', 'w')
     wrong_predictions = []
     correct_predictions = []
     samples_tested = []
 
-    log_file.write('Input: ' + str(path) + '\n')
-    log_file.write('used parameters: ' + str(params) + '\n')
+    logging.info('Input: ' + str(path) + '\n')
+    logging.info('used parameters: ' + str(params) + '\n')
     log_all_models.write('accuracy\tsensitivity\tspecificity\twrong_predicted\n')
     feature_importance(log_feature_imp, 'iteration', feature_names[:-1])
 
     if svc_model:
-        log_file.write('running ' + str(num) + ' iterations creating support vector classifiers: \n\n')
+        logging.info('running ' + str(num) + ' iterations creating support vector classifiers: \n\n')
     else:
-        log_file.write('running ' + str(num) + ' iterations creating gradient boosting classifiers: \n\n')
+        logging.info('running ' + str(num) + ' iterations creating gradient boosting classifiers: \n\n')
 
     total_accuracy = 0
     total_f1 = 0
-    best_params = {}
-    best_result = 0
     sample_set = dataset
 
     for n in range(num):
-        print('current iteration: ' + str(n))
+        logging.info('current iteration: ' + str(n) + '\n')
         current_iteration = n
         sample_set = sample_set.sample(frac=1, random_state=2)
         test, train = train_test_split(sample_set, test_flag)
@@ -363,13 +357,13 @@ def run_model_training(args):
             test = test_data
 
         if svc_model:
-            wrong, samples, correct, best_result, best_params, total_accuracy, total_f1 = create_model(test, train, 'svc',
-                                features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
-                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1)
+            wrong, samples, correct, total_accuracy, total_f1 = create_model(test, train, 'svc',
+                                features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
+                                current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
         else:
-            wrong, samples, correct, best_result, best_params, total_accuracy, total_f1 = create_model(test, train, 'gb',
-                                features, log_file, params, log_feature_imp, n, log_all_models, prediction_dataset,
-                                current_iteration, best_result, best_params, total_accuracy, cv_runs, n_jobs, total_f1)
+            wrong, samples, correct, total_accuracy, total_f1 = create_model(test, train, 'gb',
+                                features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
+                                current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
         wrong_predictions.append(wrong)
         correct_predictions.append(correct)
         samples_tested.append(samples)
@@ -377,7 +371,7 @@ def run_model_training(args):
     y = dataset['class'].values
     x = dataset.iloc[:, 1:features+1].values
     final_clf, feature_imp = create_gb(x, y, params, cv_runs, n_jobs)
-    log_file.write('Final model\nfeature importance: {}\n\n'.format(feature_imp))
+    logging.info('Final model\nparameter selection: {}\n\n'.format(final_clf.best_params_))
 
     # save final model
     with open(log_name[0] + '.pkl', 'wb') as f:
@@ -388,13 +382,12 @@ def run_model_training(args):
     outfile_wrong_predictions(wrong_predictions, correct_predictions, samples_tested, output_file, file_correct)
 
     if num > 0:
-        log_file.write('\nmean accuracy: ' + str(total_accuracy/num))
-        log_file.write('\nmean F1 score: ' + str(total_f1 / num))
+        logging.info('\nmean accuracy: ' + str(total_accuracy/num))
+        logging.info('\nmean F1 score: ' + str(total_f1 / num))
 
     end_time = time()
-    log_file.write('\ntime needed for model creation and prediction: ' + str(end_time - start_time))
+    logging.info('\ntime needed for model creation and prediction: ' + str(end_time - start_time))
 
     output_file.close()
     file_correct.close()
-    log_file.close()
     log_all_models.close()
