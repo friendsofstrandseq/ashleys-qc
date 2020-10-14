@@ -10,6 +10,7 @@ import json
 from time import time
 import pickle
 import logging
+import sys
 
 
 def add_training_parser(subparsers):
@@ -65,8 +66,6 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
     fn = 0
     counter = 0
     wrong_ids = []
-    correct_ids = []
-    rows, cols = test.shape
     names = test['sample_name'].values
 
     # create dataframe with overall prediction results:
@@ -93,13 +92,11 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
         counter += 1
         if p == 0 and t == 0:
             tn += 1
-            correct_ids.append(s)
         elif p == 0 and t == 1:
             fn += 1
             wrong_ids.append(s)
         elif p == 1 and t == 1:
             tp += 1
-            correct_ids.append(s)
         elif p == 1 and t == 0:
             fp += 1
             wrong_ids.append(s)
@@ -109,7 +106,7 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
     precision = tp / (tp + fp)
     accuracy = (tp + tn) / counter
 
-    return sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong_ids, correct_ids
+    return sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong_ids
 
 
 # add first column to dataset, based on annotation file: all cells contained in file are labeled 1
@@ -206,7 +203,7 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
     # prediction = clf.predict(x_test)  # predicted class
     params = clf.best_params_
 
-    sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong, correct = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
+    sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
     f1 = (2*tp)/(2*tp + fp + fn)
     total_accuracy += accuracy
     total_f1 += f1
@@ -219,7 +216,7 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
     logging.info('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
                    + ' true negatives: ' + str(tn) + '\n\n')
 
-    return wrong, samples_test, correct, total_accuracy, total_f1
+    return wrong, samples_test, total_accuracy, total_f1
 
 
 # performing grid search with support vector classifier based on specified parameters
@@ -246,9 +243,8 @@ def create_gb(x_train, y_train, parameters, cv_runs, n_jobs):
 
 
 # create an output file listing all samples that were wrongly predicted
-def outfile_wrong_predictions(wrong, correct, samples, output_file, file_correct):
+def outfile_wrong_predictions(wrong, samples, output_file):
     dict_wrong = dict()
-    dict_correct = dict()
     samples_tested = dict()
     for list in wrong:
         for w in list:
@@ -264,23 +260,11 @@ def outfile_wrong_predictions(wrong, correct, samples, output_file, file_correct
             else:
                 samples_tested[s] = 1
 
-    for c_list in correct:
-        for c in c_list:
-            if c in dict_wrong:
-                continue
-            elif c in dict_correct:
-                dict_correct[c] = dict_correct[c] + 1
-            else:
-                dict_correct[c] = 1
-
     output_file.write('samples\twrong_predictions\ttested\tpercentage\n')
-    file_correct.write('samples\tpredictions\n')
 
     for key, value in sorted(dict_wrong.items()):
         output_file.write(str(key) + '\t' + str(value) + '\t' + str(samples_tested[key]) + '\t' +
                    str(round(value/samples_tested[key] * 100, 2)) + '\n')
-    for key, value in sorted(dict_correct.items()):
-        file_correct.write(str(key) + '\t' + str(value) + '\n')
 
     return
 
@@ -302,8 +286,8 @@ def run_model_training(args):
 
     output_file = open(output, 'w')
     log_name = output.split('.tsv')
-    logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
-                      #  ,filename=log_name[0] + '.log')
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO,
+                        handlers=[logging.FileHandler(log_name[0] + '.log'), logging.StreamHandler(sys.stdout)])
 
     with open(annotation_file) as f:
         annotation = [line.rstrip() for line in f]
@@ -323,15 +307,12 @@ def run_model_training(args):
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
 
-    file_correct = open(log_name[0] + '_correct.tsv', 'w')
-
     if features is None:
         features = dataset.shape[1] - 2
 
     log_all_models = open(log_name[0] + '_model_log.tsv', 'w')
     log_feature_imp = open(log_name[0] + '_feature_imp.tsv', 'w')
     wrong_predictions = []
-    correct_predictions = []
     samples_tested = []
 
     logging.info('Input: ' + str(path) + '\n')
@@ -357,15 +338,14 @@ def run_model_training(args):
             test = test_data
 
         if svc_model:
-            wrong, samples, correct, total_accuracy, total_f1 = create_model(test, train, 'svc',
+            wrong, samples, total_accuracy, total_f1 = create_model(test, train, 'svc',
                                 features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
                                 current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
         else:
-            wrong, samples, correct, total_accuracy, total_f1 = create_model(test, train, 'gb',
+            wrong, samples, total_accuracy, total_f1 = create_model(test, train, 'gb',
                                 features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
                                 current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
         wrong_predictions.append(wrong)
-        correct_predictions.append(correct)
         samples_tested.append(samples)
 
     y = dataset['class'].values
@@ -379,7 +359,7 @@ def run_model_training(args):
 
     prediction_dataset.to_csv(log_name[0] + '_prediction.tsv', sep='\t', index=False)
 
-    outfile_wrong_predictions(wrong_predictions, correct_predictions, samples_tested, output_file, file_correct)
+    outfile_wrong_predictions(wrong_predictions, samples_tested, output_file)
 
     if num > 0:
         logging.info('\nmean accuracy: ' + str(total_accuracy/num))
@@ -389,5 +369,4 @@ def run_model_training(args):
     logging.info('\ntime needed for model creation and prediction: ' + str(end_time - start_time))
 
     output_file.close()
-    file_correct.close()
     log_all_models.close()
