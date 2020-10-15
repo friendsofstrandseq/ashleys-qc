@@ -196,11 +196,11 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
     if model == 'gb':
         clf, feature_imp = create_gb(x_train, y_train, parameters, cv_runs, n_jobs)
         feature_importance(feature_imp_file, n, feature_imp)
+        prediction = clf.predict_proba(x_test)[:, 1]
     else:
         clf = create_svc(x_train, y_train, parameters, cv_runs, n_jobs)
+        prediction = clf.predict(x_test)
 
-    prediction = clf.predict_proba(x_test)[:, 1]  # prediction probabilities
-    # prediction = clf.predict(x_test)  # predicted class
     params = clf.best_params_
 
     sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
@@ -210,11 +210,11 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
     log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(sensitivity, 4)) + '\t' + str(round(specificity, 4))
                          + '\t' + str(wrong) + '\n')
 
-    logging.info('\nnew best parameter combination: ' + str(params) + ' with accuracy: ' + str(accuracy))
-    logging.info(' and F1 score: ' + str(f1))
-    logging.info('\nsensitivity: {}, specificity: {}, precision: {}\n'.format(sensitivity, specificity, precision))
+    logging.info('best parameter combination: ' + str(params))
+    logging.info('with accuracy: ' + str(accuracy) + ' and F1 score: ' + str(f1))
+    logging.info('sensitivity: {}, specificity: {}, precision: {}'.format(sensitivity, specificity, precision))
     logging.info('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
-                   + ' true negatives: ' + str(tn) + '\n\n')
+                   + ' true negatives: ' + str(tn) + '\n')
 
     return wrong, samples_test, total_accuracy, total_f1
 
@@ -222,7 +222,7 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
 # performing grid search with support vector classifier based on specified parameters
 def create_svc(x_train, y_train, parameters, cv_runs, n_jobs):
     # note: usage of linear kernel may lead to divergence
-    svc = svm.SVC(random_state=2, kernel='rbf')
+    svc = svm.SVC(random_state=2)
     clf = GridSearchCV(svc, parameters, cv=cv_runs, n_jobs=n_jobs)
 
     clf.fit(x_train, y_train)
@@ -315,22 +315,22 @@ def run_model_training(args):
     wrong_predictions = []
     samples_tested = []
 
-    logging.info('Input: ' + str(path) + '\n')
-    logging.info('used parameters: ' + str(params) + '\n')
+    logging.info('Input: ' + str(path))
+    logging.info('used parameters: ' + str(params))
     log_all_models.write('accuracy\tsensitivity\tspecificity\twrong_predicted\n')
     feature_importance(log_feature_imp, 'iteration', feature_names[:-1])
 
     if svc_model:
-        logging.info('running ' + str(num) + ' iterations creating support vector classifiers: \n\n')
+        logging.info('running ' + str(num) + ' iterations creating support vector classifiers\n')
     else:
-        logging.info('running ' + str(num) + ' iterations creating gradient boosting classifiers: \n\n')
+        logging.info('running ' + str(num) + ' iterations creating gradient boosting classifiers\n')
 
     total_accuracy = 0
     total_f1 = 0
     sample_set = dataset
 
     for n in range(num):
-        logging.info('current iteration: ' + str(n) + '\n')
+        logging.info('current iteration: ' + str(n))
         current_iteration = n
         sample_set = sample_set.sample(frac=1, random_state=2)
         test, train = train_test_split(sample_set, test_flag)
@@ -350,8 +350,12 @@ def run_model_training(args):
 
     y = dataset['class'].values
     x = dataset.iloc[:, 1:features+1].values
-    final_clf, feature_imp = create_gb(x, y, params, cv_runs, n_jobs)
-    logging.info('Final model\nparameter selection: {}\n\n'.format(final_clf.best_params_))
+    if svc_model:
+        final_clf = create_svc(x, y, params, cv_runs, n_jobs)
+    else:
+        final_clf, feature_imp = create_gb(x, y, params, cv_runs, n_jobs)
+        feature_importance(log_feature_imp, 'final', feature_imp)
+    logging.info('Final model\nparameter selection: {}'.format(final_clf.best_params_))
 
     # save final model
     with open(log_name[0] + '.pkl', 'wb') as f:
@@ -362,11 +366,11 @@ def run_model_training(args):
     outfile_wrong_predictions(wrong_predictions, samples_tested, output_file)
 
     if num > 0:
-        logging.info('\nmean accuracy: ' + str(total_accuracy/num))
-        logging.info('\nmean F1 score: ' + str(total_f1 / num))
+        logging.info('mean accuracy: ' + str(total_accuracy/num))
+        logging.info('mean F1 score: ' + str(total_f1 / num) + '\n')
 
     end_time = time()
-    logging.info('\ntime needed for model creation and prediction: ' + str(end_time - start_time))
+    logging.info('time needed for model creation and prediction: ' + str(end_time - start_time))
 
     output_file.close()
     log_all_models.close()
