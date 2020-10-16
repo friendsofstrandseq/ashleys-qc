@@ -43,7 +43,7 @@ def get_relative_features(dataset):
     filtered_list = ['unmap', 'map', 'supp', 'dup', 'mq', 'read2', 'good']
     statistics_list = ['mean', 'stdev', 'n_mean', 'n_stdev']
     totals = [t for t in feature_list if 'total_' in t]
-    print(totals)
+  
     for f in filtered_list:
         del dataset[f]
     for t in totals:
@@ -287,7 +287,7 @@ def run_model_training(args):
     output_file = open(output, 'w')
     log_name = output.split('.tsv')
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO,
-                        handlers=[logging.FileHandler(log_name[0] + '.log')]  # , logging.StreamHandler(sys.stdout)])
+                        handlers=[logging.FileHandler(log_name[0] + '.log')])  # , logging.StreamHandler(sys.stdout)])
 
     with open(annotation_file) as f:
         annotation = [line.rstrip() for line in f]
