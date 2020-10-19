@@ -106,7 +106,7 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
     precision = tp / (tp + fp)
     accuracy = (tp + tn) / counter
 
-    return sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong_ids
+    return sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong_ids, prediction_dataset
 
 
 # add first column to dataset, based on annotation file: all cells contained in file are labeled 1
@@ -198,12 +198,13 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
         feature_importance(feature_imp_file, n, feature_imp)
         prediction = clf.predict_proba(x_test)[:, 1]
     else:
-        clf = create_svc(x_train, y_train, parameters, cv_runs, n_jobs)
-        prediction = clf.predict(x_test)
+        clf, feature_imp = create_svc(x_train, y_train, parameters, cv_runs, n_jobs)
+        feature_importance(feature_imp_file, n, feature_imp)
+        prediction = clf.predict_proba(x_test)[:, 1]
 
     params = clf.best_params_
 
-    sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
+    sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong, prediction_dataset = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
     f1 = (2*tp)/(2*tp + fp + fn)
     total_accuracy += accuracy
     total_f1 += f1
@@ -216,18 +217,19 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
     logging.info('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
                    + ' true negatives: ' + str(tn) + '\n')
 
-    return wrong, samples_test, total_accuracy, total_f1
+    return wrong, samples_test, total_accuracy, total_f1, prediction_dataset
 
 
 # performing grid search with support vector classifier based on specified parameters
 def create_svc(x_train, y_train, parameters, cv_runs, n_jobs):
     # note: usage of linear kernel may lead to divergence
-    svc = svm.SVC(random_state=2)
+    svc = svm.SVC(random_state=2, probability=True)
     clf = GridSearchCV(svc, parameters, cv=cv_runs, n_jobs=n_jobs)
 
     clf.fit(x_train, y_train)
+    feature_imp = clf.best_estimator_.coef_
 
-    return clf
+    return clf, feature_imp
 
 
 # performing grid search with gradient boosting classifier based on specified parameters in json file
@@ -338,11 +340,11 @@ def run_model_training(args):
             test = test_data
 
         if svc_model:
-            wrong, samples, total_accuracy, total_f1 = create_model(test, train, 'svc',
+            wrong, samples, total_accuracy, total_f1, prediction_dataset = create_model(test, train, 'svc',
                                 features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
                                 current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
         else:
-            wrong, samples, total_accuracy, total_f1 = create_model(test, train, 'gb',
+            wrong, samples, total_accuracy, total_f1, prediction_dataset = create_model(test, train, 'gb',
                                 features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
                                 current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
         wrong_predictions.append(wrong)
@@ -351,7 +353,8 @@ def run_model_training(args):
     y = dataset['class'].values
     x = dataset.iloc[:, 1:features+1].values
     if svc_model:
-        final_clf = create_svc(x, y, params, cv_runs, n_jobs)
+        final_clf, feature_imp = create_svc(x, y, params, cv_runs, n_jobs)
+        feature_importance(log_feature_imp, 'final', feature_imp)
     else:
         final_clf, feature_imp = create_gb(x, y, params, cv_runs, n_jobs)
         feature_importance(log_feature_imp, 'final', feature_imp)
