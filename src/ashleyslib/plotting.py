@@ -99,20 +99,26 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     return
 
 
-def plot_wc_distribution(w_percentage_list, output_file):
+def plot_wc_distribution(w_list, output_file):
     # plot percentage of Watson reads contained in all windows
-    dataframe = pd.read_csv(w_percentage_list, header=None, sep='\t')
-    w_list = dataframe.values.tolist()[0]
-    plt.hist(w_list, bins=200)
-    plt.xlabel('Watson reads percentage')
-    plt.ylabel('count')
-    plt.xlim(0, 1)
+    #dataframe = pd.read_csv(w_percentage_list, header=None, sep='\t')
+    #w_list = dataframe.values.tolist()[0]
+    fig, ax = plt.subplots(1)
+    n, b, p =ax.hist(w_list, bins=200)
+    ax.set_xlabel('Watson reads percentage')
+    ax.set_ylabel('count')
+    ax.set_xlim(0, 1)
+    #plt.ylim(0, 800)
     lines = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    height = max(n)
+    color_features = 'darkblue'
     for l in lines:
-        plt.axvline(l, 0, 100, label='W10', color='black')
+        ax.axvline(l, 0, 100, color=color_features, linestyle='dashed')
+        ax.text(l-0.06, height - 10, 'W' + str(int(l*100)), color=color_features)
 
-    title = 'Watson reads distribution over features'
-    plt.title(title)
+    ax.text(0.94, height - 10, 'W100', color=color_features)
+    # title = 'Watson reads distribution over features'
+    # plt.title(title)
     fig = plt.gcf()
     fig.set_size_inches(16, 4)
     plt.savefig(output_file, dpi=200)
@@ -163,7 +169,14 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
 def run_plotting(args):
     output = args.output_file
     if args.w_percentage is not None:
-        plot_wc_distribution(args.w_percentage, output)
+        dataframe = open(args.w_percentage, 'r')
+        lines = dataframe.readlines()
+        for i in range(len(lines)):
+            line = lines[i].replace('\n', '')
+            w_percentage = line.split('\t')
+            w_percentage = [float(x) for x in w_percentage]
+            output_file = output.replace('.png', '_' + str(i) + '.png')
+            plot_wc_distribution(w_percentage, output_file)
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
     if args.feature_table is not None:
