@@ -105,22 +105,27 @@ def plot_wc_distribution(w_list, output_file):
     #w_list = dataframe.values.tolist()[0]
     fig, ax = plt.subplots(1)
     n, b, p =ax.hist(w_list, bins=200)
-    ax.set_xlabel('Watson reads percentage')
-    ax.set_ylabel('count')
+    size = 20
+    ax.set_xlabel('Watson reads percentage', fontsize=size)
+    ax.set_ylabel('count', fontsize=size)
     ax.set_xlim(0, 1)
-    #plt.ylim(0, 800)
+    ax.spines['top'].set_visible(False)
+
     lines = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     height = max(n)
-    color_features = 'darkblue'
+    ylim = 2000
+    height = ylim
+    ax.set_ylim(0, ylim)
+    color_features = 'black'
     for l in lines:
         ax.axvline(l, 0, 100, color=color_features, linestyle='dashed')
-        ax.text(l-0.06, height - 10, 'W' + str(int(l*100)), color=color_features)
+        ax.text(l-0.07, height - 10, 'W' + str(int(l*100)), color=color_features, fontsize=size)
 
-    ax.text(0.94, height - 10, 'W100', color=color_features)
+    ax.text(0.92, height - 10, 'W100', color=color_features, fontsize=size)
     # title = 'Watson reads distribution over features'
     # plt.title(title)
     fig = plt.gcf()
-    fig.set_size_inches(16, 4)
+    fig.set_size_inches(16, 5)
     plt.savefig(output_file, dpi=200)
     return
 
@@ -130,8 +135,9 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
     dataframe = pd.read_csv(probability_file, sep='\t')
     probability = dataframe['probability'].values
     names = dataframe['cell'].values
-
+    size = 15
     plt.clf()
+    bins = np.linspace(0, 1, 50)
     if annotation_file is not None:
         # add colors for real class
         annotation = []
@@ -149,18 +155,20 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
                 class_0.append(p)
             else:
                 class_1.append(p)
-        bins = np.linspace(0, 1, 50)
+
         plt.hist(class_0, bins=bins, alpha=0.8, label='Class 0')
         plt.hist(class_1, bins=bins, alpha=0.8, label='Class 1')
         plt.legend(loc='upper center')
 
     else:
-        plt.hist(probability, bins=30)
+        plt.hist(probability, bins=bins)
 
-    plt.xlabel('class 1 probability')
-    plt.ylabel('count')
-    title = 'prediction distribution'
-    plt.title(title)
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+    plt.xlabel('class 1 probability', fontsize=size)
+    plt.ylabel('count', fontsize=size)
+    #title = 'prediction distribution'
+    #plt.title(title)
     plt.savefig(output_file)
 
     return
@@ -171,7 +179,8 @@ def run_plotting(args):
     if args.w_percentage is not None:
         dataframe = open(args.w_percentage, 'r')
         lines = dataframe.readlines()
-        for i in range(len(lines)):
+        values = [161, 1576]
+        for i in values: #range(len(lines)):
             line = lines[i].replace('\n', '')
             w_percentage = line.split('\t')
             w_percentage = [float(x) for x in w_percentage]
