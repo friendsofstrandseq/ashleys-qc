@@ -1,3 +1,2 @@
-{"C": [0.5, 1, 10],
-"gamma": [1e-17, 1e-14, 1e-10, "scale", "auto"],
-"kernel": ["linear", "poly", "rbf", "sigmoid"]}
+{"C": [0.2, 0.5, 1, 10, 50],
+"kernel": ["linear"]}

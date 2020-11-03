@@ -227,7 +227,8 @@ def create_svc(x_train, y_train, parameters, cv_runs, n_jobs):
     clf = GridSearchCV(svc, parameters, cv=cv_runs, n_jobs=n_jobs)
 
     clf.fit(x_train, y_train)
-    feature_imp = clf.best_estimator_.coef_
+    
+    feature_imp = clf.best_estimator_.coef_.ravel()
 
     return clf, feature_imp
 
