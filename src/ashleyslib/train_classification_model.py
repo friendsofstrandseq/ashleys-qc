@@ -101,12 +101,7 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
             fp += 1
             wrong_ids.append(s)
 
-    sensitivity = tp / (tp + fn)
-    specificity = tn / (tn + fp)
-    precision = tp / (tp + fp)
-    accuracy = (tp + tn) / counter
-
-    return sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong_ids, prediction_dataset
+    return fp, fn, tp, tn, wrong_ids, prediction_dataset
 
 
 # add first column to dataset, based on annotation file: all cells contained in file are labeled 1
@@ -183,7 +178,7 @@ def feature_importance(imp_file, iteration, imp_values):
 
 # create model (gradient boosting or support vector)
 def create_model(test, train, model, features, logging, parameters, feature_imp_file, n, log_all_models,
-                 prediction_dataset, current_iteration, total_accuracy, cv_runs, n_jobs, total_f1):
+                 prediction_dataset, current_iteration, results, cv_runs, n_jobs):
 
     y_train = train['class'].values
     y_train = y_train.astype('int')
@@ -204,20 +199,25 @@ def create_model(test, train, model, features, logging, parameters, feature_imp_
 
     params = clf.best_params_
 
-    sensitivity, specificity, precision, accuracy, fp, fn, tp, tn, wrong, prediction_dataset = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
+    fp, fn, tp, tn, wrong, prediction_dataset = evaluation(prediction, y_test, test, prediction_dataset, current_iteration)
+    accuracy = (tp + tn) / (tp + tn + fp + fn)
     f1 = (2*tp)/(2*tp + fp + fn)
-    total_accuracy += accuracy
-    total_f1 += f1
-    log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(sensitivity, 4)) + '\t' + str(round(specificity, 4))
+    results[0] += accuracy
+    results[1] += f1
+    results[2] += tp
+    results[3] += tn
+    results[4] += fp
+    results[5] += fn
+    log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(tp / (tp + fn), 4)) + '\t' + str(round(tn / (tn + fp), 4))
                          + '\t' + str(wrong) + '\n')
 
     logging.info('best parameter combination: ' + str(params))
     logging.info('with accuracy: ' + str(accuracy) + ' and F1 score: ' + str(f1))
-    logging.info('sensitivity: {}, specificity: {}, precision: {}'.format(sensitivity, specificity, precision))
+    logging.info('sensitivity: {}, specificity: {}, precision: {}'.format(tp / (tp + fn), tn / (tn + fp), tp / (tp + fp)))
     logging.info('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp)
                    + ' true negatives: ' + str(tn) + '\n')
 
-    return wrong, samples_test, total_accuracy, total_f1, prediction_dataset
+    return wrong, samples_test, results, prediction_dataset
 
 
 # performing grid search with support vector classifier based on specified parameters
@@ -328,8 +328,7 @@ def run_model_training(args):
     else:
         logging.info('running ' + str(num) + ' iterations creating gradient boosting classifiers\n')
 
-    total_accuracy = 0
-    total_f1 = 0
+    total_results = [0.0] * 6 # total values for accuracy, f1, tp, tn, fp, fn
     sample_set = dataset
 
     for n in range(num):
@@ -341,13 +340,13 @@ def run_model_training(args):
             test = test_data
 
         if svc_model:
-            wrong, samples, total_accuracy, total_f1, prediction_dataset = create_model(test, train, 'svc',
+            wrong, samples, total_results, prediction_dataset = create_model(test, train, 'svc',
                                 features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
-                                current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
+                                current_iteration, total_results, cv_runs, n_jobs)
         else:
-            wrong, samples, total_accuracy, total_f1, prediction_dataset = create_model(test, train, 'gb',
+            wrong, samples, total_results, prediction_dataset = create_model(test, train, 'gb',
                                 features, logging, params, log_feature_imp, n, log_all_models, prediction_dataset,
-                                current_iteration, total_accuracy, cv_runs, n_jobs, total_f1)
+                                current_iteration, total_results, cv_runs, n_jobs)
         wrong_predictions.append(wrong)
         samples_tested.append(samples)
 
@@ -370,8 +369,11 @@ def run_model_training(args):
     outfile_wrong_predictions(wrong_predictions, samples_tested, output_file)
 
     if num > 0:
-        logging.info('mean accuracy: ' + str(total_accuracy/num))
-        logging.info('mean F1 score: ' + str(total_f1 / num) + '\n')
+        logging.info('mean accuracy: ' + str(total_results[0] / num))
+        logging.info('mean F1 score: ' + str(total_results[1] / num))
+        logging.info('mean tp: ' + str(int(round(total_results[2] / num))) + ', tn: ' +
+                     str(int(round(total_results[3] / num))) + ', fp: ' + str(int(round(total_results[4] / num))) +
+                     ', fn: ' + str(int(round(total_results[5] / num))) + '\n')
 
     end_time = time()
     logging.info('time needed for model creation and prediction: ' + str(end_time - start_time))
