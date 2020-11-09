@@ -38,7 +38,7 @@ def add_training_parser(subparsers):
     return subparsers
 
 
-def get_relative_features(dataset):
+def get_relative_features(dataset, logging):
     feature_list = dataset.columns
     filtered_list = ['unmap', 'map', 'supp', 'dup', 'mq', 'read2', 'good']
     statistics_list = ['mean', 'stdev', 'n_mean', 'n_stdev']
@@ -49,6 +49,8 @@ def get_relative_features(dataset):
     for t in totals:
         feature_values = dataset[t]
         dataset[t] = dataset[t] / max(feature_values)
+        if t == 'total_1.0mb' and max(feature_values) < 5000:
+            logging.warning('The input data might be of too low quality for reasonable results')
 
         for s in statistics_list:
             col = t.replace('total', s)
@@ -306,7 +308,7 @@ def run_model_training(args):
     dataset = pd.read_csv(path, sep='\s+', header=0)
     # dataset = filter_low_read_counts(dataset)
     if args.relative:
-        dataset = get_relative_features(dataset)
+        dataset = get_relative_features(dataset, logging)
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
 
