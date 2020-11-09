@@ -16,9 +16,9 @@ def parse_command_line():
     parser = argparse.ArgumentParser(add_help=True)
     #parser.add_argument('--version', '-v', action='version', version=__version__)
 
-    #parser_group = parser.add_argument_group('General parameters')
-    #parser_group.add_argument('--jobs', '-j', type=int, default=1, dest='workers',
-    #                     help='Number of CPU cores to use, default: 1')
+    parser_group = parser.add_argument_group('General parameters')
+    # parser_group.add_argument('--jobs', '-j', type=int, default=1, help='Number of CPU cores to use, default: 1')
+    parser_group.add_argument('--logging', '-l', help='file name for logging output')
 
     parser = add_sub_parsers(parser)
 

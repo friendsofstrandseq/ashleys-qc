@@ -291,8 +291,11 @@ def run_model_training(args):
 
     output_file = open(output, 'w')
     log_name = output.split('.tsv')
+    log_file = log_name[0] + '.log'
+    if args.logging is not None:
+        log_file = args.logging
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO,
-                        handlers=[logging.FileHandler(log_name[0] + '.log')])  # , logging.StreamHandler(sys.stdout)])
+                        handlers=[logging.FileHandler(log_file)])  # , logging.StreamHandler(sys.stdout)])
 
     with open(annotation_file) as f:
         annotation = [line.rstrip() for line in f]

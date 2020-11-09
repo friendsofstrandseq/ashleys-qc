@@ -6,6 +6,7 @@ from collections import Counter
 import statistics
 import os
 import re
+import logging
 
 
 def add_features_parser(subparsers):
@@ -176,13 +177,14 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
     return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
 
 
-def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chromosomes):
+def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chromosomes, logging):
     # read a BAM file and return different features for windows of the chromosomes
 
     with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
         references = bamfile.references
         chrom_re = re.compile(chromosomes)
         chromosome_list = [x for x in references if chrom_re.match(x)]
+        logging.info('Chromosomes used for feature generation: ' + str(chromosome_list))
 
     filtered_list = ['unmapped', 'mapped', 'supplementary', 'duplicate', 'mapping_quality', 'read2', 'good']
     feature_list = []
@@ -240,8 +242,8 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chr
     return w_percentage_list, feature_list
 
 
-def collect_features(jobs, windowsize_list, bamfile, mapq_threshold, output, distribution_file, chromosomes):
-    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile, mapq_threshold, chromosomes)
+def collect_features(jobs, windowsize_list, bamfile, mapq_threshold, output, distribution_file, chromosomes, logging):
+    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile, mapq_threshold, chromosomes, logging)
     distribution_file.write("\t".join(w_list))
     distribution_file.write('\n')
     output.write("\t".join(feature_list))
@@ -257,9 +259,17 @@ def run_feature_generation(args):
     output_file = args.output_file
 
     file_name, ending = output_file.rsplit('.', 1)
+    log_file = file_name + '.log'
+    if args.logging is not None:
+        log_file = args.logging
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO,
+                        handlers=[logging.FileHandler(log_file)])
+    logging.info('Generating features for window sizes ' + str(windowsize_list))
+
     distribution_file = open(file_name + '_window_distribution.' + ending, 'w')
     output = open(output_file, 'w')
     features = get_header(windowsize_list)
+    logging.info('list of all features to generate: ' + str(features))
     output.write('\t'.join(features))
     output.write('\n')
     
@@ -269,7 +279,7 @@ def run_feature_generation(args):
         chromosomes = args.chromosomes
 
     if os.path.isfile(path):
-        collect_features(args.jobs, windowsize_list, path, mapq_threshold, output, distribution_file, chromosomes)
+        collect_features(args.jobs, windowsize_list, path, mapq_threshold, output, distribution_file, chromosomes, logging)
 
     else:
         extension = args.bam_extension
@@ -279,7 +289,7 @@ def run_feature_generation(args):
                     continue
                 next_cell = os.path.join(path, name)
                 collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file,
-                                 chromosomes)
+                                 chromosomes, logging)
 
         else:
             for root, subdirs, files in os.walk(path):
@@ -288,7 +298,7 @@ def run_feature_generation(args):
                         continue
                     next_cell = os.path.join(root, name)
                     collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file,
-                                     chromosomes)
+                                     chromosomes, logging)
 
     output.close()
     distribution_file.close()
