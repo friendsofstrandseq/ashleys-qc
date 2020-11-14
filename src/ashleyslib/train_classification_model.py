@@ -304,6 +304,8 @@ def run_model_training(args):
         params = json.load(jfile)
 
     dataset = pd.read_csv(path, sep='\s+', header=0)
+    # sort dataframe for reproducible results
+    dataset.sort_values(by=['sample_name'], inplace=True)  
     # dataset = filter_low_read_counts(dataset)
     if args.relative:
         dataset = get_relative_features(dataset)

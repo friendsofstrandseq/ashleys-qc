@@ -135,7 +135,7 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
     dataframe = pd.read_csv(probability_file, sep='\t')
     probability = dataframe['probability'].values
     names = dataframe['cell'].values
-    size = 15
+    size = 10 # 15  # (size for paper plot)
     plt.clf()
     bins = np.linspace(0, 1, 50)
     if annotation_file is not None:
@@ -156,8 +156,9 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
             else:
                 class_1.append(p)
 
-        plt.hist(class_0, bins=bins, alpha=0.8, label='Class 0')
-        plt.hist(class_1, bins=bins, alpha=0.8, label='Class 1')
+        alpha = 0.7
+        plt.hist(class_0, bins=bins, alpha=alpha, label='Class 0')
+        plt.hist(class_1, bins=bins, alpha=alpha, label='Class 1')
         plt.legend(loc='upper center')
 
     else:
@@ -169,7 +170,7 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
     plt.ylabel('count', fontsize=size)
     #title = 'prediction distribution'
     #plt.title(title)
-    plt.savefig(output_file)
+    plt.savefig(output_file, bbox_inches='tight')
 
     return
 
