@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import pickle
 from ashleyslib.train_classification_model import get_relative_features
+import logging
 
 
 def add_prediction_parser(subparsers):
@@ -122,21 +123,31 @@ def run_prediction(args):
     output = args.output
     annotation = args.annotation
     filter_cells = args.filter
+    log_file = output + 'prediction.log'
+    if args.logging is not None:
+        log_file = args.logging
 
-    if args.prediction_high is not None:
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO,
+                        handlers=[logging.FileHandler(log_file)])
+
+    if args.prediction_high is not None and args.prediction_ok is not None:
+        logging.info('comparing two predictions of high and ok quality models')
         compare_prediction(args.prediction_high, args.prediction_ok, annotation, output)
         return
 
     critical_bound = (0.3, 0.7)
     dataset = pd.read_csv(path, sep='\s+')
     if args.relative:
-        dataset = get_relative_features(dataset)
+        logging.info('using relative feature values')
+        dataset = get_relative_features(dataset, logging)
     features = dataset.drop(columns=['sample_name'])
     names = dataset['sample_name'].values
 
+    logging.info('predicting class probabilities, extracting critical predictions between bound ' + str(critical_bound))
     prediction, probability = predict_model(model, features)
 
     if filter_cells:
+        logging.info('filtering low read counts')
         filtered_cells = filter_low_read_counts(dataset)
         names = np.concatenate((names, filtered_cells))
         prediction_filtered = [0] * len(filtered_cells)
@@ -144,6 +155,7 @@ def run_prediction(args):
         probability = np.concatenate((probability, prediction_filtered))
 
     if annotation is not None:
+        logging.info('comparing prediction to given annotation')
         evaluate_prediction(probability, annotation, names, output, critical_bound)
 
     file = open(output + 'prediction_probabilities.tsv', 'w')

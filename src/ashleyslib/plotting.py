@@ -12,7 +12,7 @@ def add_plotting_parser(subparsers):
     parser.add_argument('--annotation', '-a', help='annotation file for comparing predictions', required=False)
     parser.add_argument('--probabilities', '-p', help='file with prediction probabilities', required=False)
     parser.add_argument('--feature_table', '-f', help='feature table of cells to plot', required=False)
-    parser.add_argument('--feature_list', '-l', help='list of features to plot', required=False)
+    parser.add_argument('--feature_list', '-fl', help='list of features to plot', required=False)
     parser.add_argument('--output_file', '-o', help='name of output file', required=True)
     parser.add_argument('--relative', dest='relative', action='store_true', default=False, required=False,
                         help='using only relative features')
