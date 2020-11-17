@@ -66,7 +66,7 @@ def get_statistics(list, all):
     return feature_list
 
 
-def get_wc_composition(total_window_collection_wc, total_window_collection):
+def get_wc_composition(total_window_collection_wc, total_window_collection, window_count):
     # create 10 features for 10% steps of w-percentage in windows
     feature_list = []
     window_dict = dict(total_window_collection)
@@ -110,7 +110,7 @@ def get_wc_composition(total_window_collection_wc, total_window_collection):
             c = 'W' + str(i+10)
             feature_list.append(str(wc_collection[c] / total))
 
-    feature_list.append(str(total))
+    feature_list.append(str(total/window_count))
 
     return values, wc_difference, w_percentage_list, feature_list
 
@@ -126,9 +126,11 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
         window_collection = Counter([])
         window_collection_wc = Counter([])
         neighbor_difference = []
+        window_count = 0
 
         # count reads in each window of size stepsize
         for i in range(0, length, step_size):
+            window_count += 1
             s = str(chrom) + str(i)
             window_collection.update({s:1})
             window_collection_wc.update({s: 1})
@@ -174,7 +176,7 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
                 diff = window_collection[last_window] - window_collection[s]
                 neighbor_difference.append(diff)
 
-    return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference
+    return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference, window_count
 
 
 def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chromosomes, logging):
@@ -202,23 +204,25 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chr
         result = p.starmap(get_read_features, args_list)
         p.close()
         p.join()
-
+        window_count = 0
         for r in result:
             total_count_collection += r[1]
             total_window_collection += r[2]
             total_window_collection_wc += r[3]
             total_neighbor_difference += r[4]
+            window_count += r[5]
 
         values, wc_difference, w_percentage_list, next_features = get_wc_composition(total_window_collection_wc,
-                                                                                     total_window_collection)
+                                                                                     total_window_collection,
+                                                                                     window_count)
 
-        statistics_features = get_statistics(values, False)
-        neighbor_features = get_statistics(total_neighbor_difference, False)
-        feature_list = feature_list + next_features + statistics_features + neighbor_features
+        # statistics_features = get_statistics(values, False)
+        # neighbor_features = get_statistics(total_neighbor_difference, False)
+        feature_list = feature_list + next_features  # + statistics_features + neighbor_features
 
     # absolute filtering feature values
-    for i in filtered_list:
-        feature_list.append(str(total_count_collection[i]))
+    # for i in filtered_list:
+        # feature_list.append(str(total_count_collection[i]))
 
     # relative filtering feature values
     total_reads = total_count_collection['mapped'] + total_count_collection['unmapped']

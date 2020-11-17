@@ -135,7 +135,7 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
     dataframe = pd.read_csv(probability_file, sep='\t')
     probability = dataframe['probability'].values
     names = dataframe['cell'].values
-    size = 10 # 15  # (size for paper plot)
+    size = 10  # 15  # (size for paper plot)
     plt.clf()
     bins = np.linspace(0, 1, 50)
     if annotation_file is not None:
@@ -168,8 +168,8 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
     plt.gca().spines['right'].set_visible(False)
     plt.xlabel('class 1 probability', fontsize=size)
     plt.ylabel('count', fontsize=size)
-    #title = 'prediction distribution'
-    #plt.title(title)
+    # title = 'prediction distribution'
+    # plt.title(title)
     plt.savefig(output_file, bbox_inches='tight')
 
     return
@@ -181,17 +181,16 @@ def run_plotting(args):
         dataframe = open(args.w_percentage, 'r')
         lines = dataframe.readlines()
         values = [161, 1576]
-        for i in values: #range(len(lines)):
+        for i in values:
             line = lines[i].replace('\n', '')
             w_percentage = line.split('\t')
             w_percentage = [float(x) for x in w_percentage]
-            output_file = output.replace('.png', '_' + str(i) + '.png')
+            output_file = output[:(len(output)-4)] + '_' + str(i) + output[(len(output)-4):]
             plot_wc_distribution(w_percentage, output_file)
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
     if args.feature_table is not None:
-        feature_list = ['W40_5mb', 'W70_5mb', 'W20_0.6mb', 'W90_0.6mb']#, 'total_0.2mb']
-        #feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb']#, 'total_0.2mb']
+        feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb']  # , 'total_0.2mb']
         if args.feature_list is not None:
             feature_list = args.feature_list
         plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.relative, args.compare,
