@@ -1,7 +1,7 @@
 # ashleys-qc
 Automated Selection of High quality Libraries for the Extensive analYsis of Strandseq data (ASHLEYS)
 
-ASHLEYS is developed on Linux environments using Python3.6.
+ASHLEYS is developed on Linux environments using Python3.7.
 For automatic installation and data prediction use the [pipeline](https://github.com/friendsofstrandseq/ashleys-qc-pipeline).
 
 ## Setup
@@ -29,8 +29,8 @@ Create features for bam files for a given window size. <br>
 Example usage generating all necessary features for using the pretrained models for all 
 .bam files in a specified directory : 
 ``` python
-./bin/ashleys.py features -f [folder_with_bamfiles] -w 5000000 2000000 1000000 \
- 800000 600000 400000 200000 -j 23 -o [feature_table.tsv] 
+./bin/ashleys.py -j 23 features -f [folder_with_bamfiles] -w 5000000 2000000 1000000 \
+ 800000 600000 400000 200000 -o [feature_table.tsv] 
 ```
 
 ## Model Training
@@ -38,14 +38,15 @@ Train a new classification model based on an annotation file specifying class 1 
 The model is trained with support vector classification based on grid search on hyperparamters. <br>
 Example usage: 
 ``` python
-./bin/ashleys.py train -p [feature_table.tsv] -a [annotation.txt] -o [output.tsv] -j models/dict_svc.json
+./bin/ashleys.py train -p [feature_table.tsv] -a [annotation.txt] -o [output.tsv] 
 ```
 
 ## Prediction
 Predict the class probabilities for new cells based on pre-trained models or based on customized models. <br>
-Example usage for prediction based on high quality pretrained model: 
+The default model trained with support vector classification should identify low quality cells of new data with high confidence. <br>
+Example usage for prediction based on this pretrained model: 
 ``` python
-./bin/ashleys.py predict -p [feature_table.tsv] -o [output_folder] -m models/hgsvc_high-qual.pkl
+./bin/ashleys.py predict -p [feature_table.tsv] -o [output_folder] -m models/svc_default.pkl
 ```
 
 ## Plotting
