@@ -1,38 +1,33 @@
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from ashleyslib.train_classification_model import get_relative_features
 
 
 def add_plotting_parser(subparsers):
     parser = subparsers.add_parser('plot', help='create plots for produced data')
-    parser.add_argument('--w_percentage', '-w', help='file with Watson percentage for each considered window',
-                        required=False)
-    parser.add_argument('--annotation', '-a', help='annotation file for comparing predictions', required=False)
-    parser.add_argument('--probabilities', '-p', help='file with prediction probabilities', required=False)
-    parser.add_argument('--feature_table', '-f', help='feature table of cells to plot', required=False)
-    parser.add_argument('--feature_list', '-fl', help='list of features to plot', required=False)
-    parser.add_argument('--output_file', '-o', help='name of output file', required=True)
-    parser.add_argument('--relative', dest='relative', action='store_true', default=False, required=False,
-                        help='using only relative features')
-    parser.add_argument('--compare', '-c', help='plot feature list and compare it to those features', required=False)
-    parser.add_argument('--compare_annotation', '-ca', help='annotation file for comparing data', required=False)
 
+    parser.add_argument('--annotation', '-a', help='annotation file for comparing predictions')
+    parser.add_argument('--probabilities', '-p', help='file with prediction probabilities')
+    parser.add_argument('--output_file', '-o', help='name of output file', required=True)
+
+    parser_group_comp = parser.add_argument_group('Plot the distribution of a small set of features')
+    parser.add_argument('--feature_table', '-f', help='feature table of cells to plot')
+    parser.add_argument('--feature_list', '-fl', help='list of features to plot')
+    parser_group_comp.add_argument('--compare', '-c', help='plot feature list and compare it to those features')
+    parser_group_comp.add_argument('--compare_annotation', '-ca', help='annotation file for comparing data')
+
+    parser_group_w = parser.add_argument_group('Plot Watson distribution for ')
+    parser_group_w.add_argument('--w_percentage', '-w', help='file with Watson percentage for each considered window')
     parser.set_defaults(execute=run_plotting)
 
     return subparsers
 
 
-def plot_feature_range(feature_table, annotation, feature_list, output_file, relative, compare, compare_annotation):
+def plot_feature_range(feature_table, annotation, feature_list, output_file, compare, compare_annotation):
     features = pd.read_csv(feature_table, sep='\s+')
     alpha = 0.8
     if compare is not None:
         compare_features = pd.read_csv(compare, sep='\s+')
-    if relative:
-        features = get_relative_features(features)
-        if compare is not None:
-            compare_features = get_relative_features(compare_features)
 
     if annotation is not None:
         with open(annotation) as f:
@@ -45,7 +40,6 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
             compare_ones = compare_features[compare_features['sample_name'].isin(compare_annotation_list)]
             compare_zeroes = compare_features[~compare_features['sample_name'].isin(compare_annotation_list)]
 
-    rows, cols = features.shape
     feature_range = []
     for f in feature_list:
         values = features[f]
@@ -56,12 +50,7 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
     plt.subplots_adjust(hspace=0.35, wspace=0.25)
 
     axis = range(len(feature_list))
-    in_list = np.arange(0, 2.04, 0.04)
-    type = 'step'
     for i in range(len(feature_list)):
-        #axs[axis[i]].set_xlim(0, max(1, feature_range[i][1]+0.04))
-        #bin_list = np.arange(0, max(1.04, feature_range[i][1] + 0.04), 0.04)
-        #axs[axis[i]].set_ylim(0, rows/2)
         axs[axis[i]].set_xlim(0, 0.2)
         bin_list = np.arange(0, 0.2, 0.002)
         axs[axis[i]].set_ylim(0, 100)
@@ -93,7 +82,6 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
         ax.set_xlabel('Value')
         ax.set_ylabel('Count')
 
-    #plt.show()
     fig.set_size_inches(16, 6)
     plt.savefig(output_file)
     return
@@ -101,10 +89,8 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, rel
 
 def plot_wc_distribution(w_list, output_file):
     # plot percentage of Watson reads contained in all windows
-    #dataframe = pd.read_csv(w_percentage_list, header=None, sep='\t')
-    #w_list = dataframe.values.tolist()[0]
     fig, ax = plt.subplots(1)
-    n, b, p =ax.hist(w_list, bins=200)
+    ax.hist(w_list, bins=200)
     size = 20
     ax.set_xlabel('Watson reads percentage', fontsize=size)
     ax.set_ylabel('count', fontsize=size)
@@ -112,7 +98,6 @@ def plot_wc_distribution(w_list, output_file):
     ax.spines['top'].set_visible(False)
 
     lines = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    height = max(n)
     ylim = 2000
     height = ylim
     ax.set_ylim(0, ylim)
@@ -122,8 +107,6 @@ def plot_wc_distribution(w_list, output_file):
         ax.text(l-0.07, height - 10, 'W' + str(int(l*100)), color=color_features, fontsize=size)
 
     ax.text(0.92, height - 10, 'W100', color=color_features, fontsize=size)
-    # title = 'Watson reads distribution over features'
-    # plt.title(title)
     fig = plt.gcf()
     fig.set_size_inches(16, 5)
     plt.savefig(output_file, dpi=200)
@@ -168,8 +151,6 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
     plt.gca().spines['right'].set_visible(False)
     plt.xlabel('class 1 probability', fontsize=size)
     plt.ylabel('count', fontsize=size)
-    # title = 'prediction distribution'
-    # plt.title(title)
     plt.savefig(output_file, bbox_inches='tight')
 
     return
@@ -193,7 +174,7 @@ def run_plotting(args):
         feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb']  # , 'total_0.2mb']
         if args.feature_list is not None:
             feature_list = args.feature_list
-        plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.relative, args.compare,
+        plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.compare,
                            args.compare_annotation)
 
     return
