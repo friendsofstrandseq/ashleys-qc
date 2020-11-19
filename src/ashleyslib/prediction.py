@@ -51,7 +51,7 @@ def compare_prediction(prediction_1, prediction_2, annotation, output):
             o.write(str(n) + '\t' + str(p) + '\n')
 
     if annotation is not None:
-        evaluate_prediction(combined_prediction, annotation, names, output[:-4] + '_', (0.3, 0.7))
+        evaluate_prediction(combined_prediction, annotation, names, output, (0.3, 0.7))
     return
 
 
@@ -92,7 +92,7 @@ def evaluate_prediction(probability, annotation, names, output, critical_bound):
                 if p < critical_bound[1]:
                     fp_critical.append(n)
 
-    with open(output + 'prediction_accuracy.tsv', 'w') as f:
+    with open(output[0] + '_prediction_accuracy.' + output[1], 'w') as f:
         f.write('false positive predictions: ' + str(fp_cells) + '\n')
         f.write('false positive and critical predictions: ' + str(fp_critical) + '\n')
         f.write('false negative predictions: ' + str(fn_cells) + '\n')
@@ -105,16 +105,17 @@ def evaluate_prediction(probability, annotation, names, output, critical_bound):
 
 def run_prediction(args):
     output = args.output
-    log_file = output + 'prediction.log'
+    file_name = output.rsplit('.', 1)
+    log_file = file_name[0] + '_prediction.log'
     if args.logging is not None:
         log_file = args.logging
 
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO,
-                        handlers=[logging.FileHandler(log_file)])
+    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',
+                        level=logging.INFO, handlers=[logging.FileHandler(log_file)])
 
     if args.prediction_1 is not None and args.prediction_2 is not None:
         logging.info('comparing two predictions of different models')
-        compare_prediction(args.prediction_1, args.prediction_2, args.annotation, output)
+        compare_prediction(args.prediction_1, args.prediction_2, args.annotation, file_name)
         return
 
     critical_bound = (0.3, 0.7)
@@ -127,15 +128,15 @@ def run_prediction(args):
 
     if args.annotation is not None:
         logging.info('comparing prediction to given annotation')
-        evaluate_prediction(probability, args.annotation, names, output, critical_bound)
+        evaluate_prediction(probability, args.annotation, names, file_name, critical_bound)
 
-    file = open(output + 'prediction_probabilities.tsv', 'w')
-    critical = open(output + 'critical_predictions.tsv', 'w')
-    file.write('cell\tprediction\tprobability\n')
+    pred_file = open(output, 'w')
+    critical = open(file_name[0] + '_critical_predictions.' + file_name[1], 'w')
+    pred_file.write('cell\tprediction\tprobability\n')
     critical.write('cell\tprobability\n')
     for i in range(len(names)):
-        file.write(names[i] + '\t' + str(prediction[i]) + '\t' + str(round(probability[i], 4)) + '\n')
+        pred_file.write(names[i] + '\t' + str(prediction[i]) + '\t' + str(round(probability[i], 4)) + '\n')
         if critical_bound[0] < probability[i] < critical_bound[1]:
             critical.write(names[i] + '\t' + str(round(probability[i], 4)) + '\n')
 
-    file.close()
+    pred_file.close()
