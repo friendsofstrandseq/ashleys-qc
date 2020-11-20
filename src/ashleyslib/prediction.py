@@ -92,7 +92,7 @@ def evaluate_prediction(probability, annotation, names, output, critical_bound):
                 if p < critical_bound[1]:
                     fp_critical.append(n)
 
-    with open(output[0] + '_prediction_accuracy.' + output[1], 'w') as f:
+    with open(output[0] + '_accuracy.' + output[1], 'w') as f:
         f.write('false positive predictions: ' + str(fp_cells) + '\n')
         f.write('false positive and critical predictions: ' + str(fp_critical) + '\n')
         f.write('false negative predictions: ' + str(fn_cells) + '\n')
@@ -106,7 +106,7 @@ def evaluate_prediction(probability, annotation, names, output, critical_bound):
 def run_prediction(args):
     output = args.output
     file_name = output.rsplit('.', 1)
-    log_file = file_name[0] + '_prediction.log'
+    log_file = file_name[0] + '.log'
     if args.logging is not None:
         log_file = args.logging
 
@@ -131,7 +131,7 @@ def run_prediction(args):
         evaluate_prediction(probability, args.annotation, names, file_name, critical_bound)
 
     pred_file = open(output, 'w')
-    critical = open(file_name[0] + '_critical_predictions.' + file_name[1], 'w')
+    critical = open(file_name[0] + '_critical.' + file_name[1], 'w')
     pred_file.write('cell\tprediction\tprobability\n')
     critical.write('cell\tprobability\n')
     for i in range(len(names)):
