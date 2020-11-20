@@ -221,19 +221,23 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chr
     for i in filtered_list:
         feature_list.append(str(total_count_collection[i]/total_reads))
 
-    # add filename as sample+cell
-    file = bamfile_name.rsplit('/', 1)[1]
-    f1, f2, f3, f4 = file.rsplit('_')
-
-    if f1.endswith('A') or f1.endswith('B'):
-        f1 = f1[:-1]
-    cell_name = f4.split('.', 1)[0]
-    if cell_name.startswith('A') or cell_name.startswith('B'):
-        cell_name = cell_name[1:]
-    if cell_name.startswith('x'):
-        feature_list.append(f1 + cell_name)
+    # add sample name
+    file_name = bamfile_name.rsplit('/', 1)[1]
+    f_list = file_name.rsplit('_')
+    if len(f_list) == 4:
+        # for filenames like HG00268_hgsvc_ilnxs-80pe_01PE20433, the middle is omitted to get HG00268x01PE20433
+        f1, f2, f3, f4 = f_list
+        if f1.endswith('A') or f1.endswith('B'):
+            f1 = f1[:-1]
+        cell_name = f4.split('.', 1)[0]
+        if cell_name.startswith('A') or cell_name.startswith('B'):
+            cell_name = cell_name[1:]
+        if cell_name.startswith('x'):
+            feature_list.append(f1 + cell_name)
+        else:
+            feature_list.append(f1 + 'x' + cell_name)
     else:
-        feature_list.append(f1 + 'x' + cell_name)
+        feature_list.append(file_name)
 
     return w_percentage_list, feature_list
 
