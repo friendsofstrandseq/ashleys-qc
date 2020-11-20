@@ -55,3 +55,10 @@ Example usage:
 ``` python
 ./bin/ashleys.py plot -p [output_folder]/prediction_probabilities.tsv -o [output_plot]
 ```
+
+## Test Data
+Example of test data prediction which directly compares the predicted class to the true annotation:
+``` python
+./bin/ashleys.py predict -p data/test_features.tsv -o prediction.tsv \
+-m models/svc_default.pkl -a data/test_annotation.txt
+```
