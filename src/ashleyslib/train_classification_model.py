@@ -20,7 +20,7 @@ def add_training_parser(subparsers):
     parser.add_argument('--output', '-o', help='name of output file', required=True)
     parser.add_argument('--cv_runs', '-c', help='number of cv runs performed by grid search, initial: 5',
                         required=False, default=5, type=int)
-    parser.add_argument('--json', help='json file with the parameters for grid search', required=False)
+    parser.add_argument('--json', '-js', help='json file with the parameters for grid search', required=True)
 
     model_parser = parser.add_mutually_exclusive_group(required=False)
     model_parser.add_argument('--svc', dest='classifier', action='store_true',
@@ -250,19 +250,12 @@ def run_model_training(args):
         annotation = [line.rstrip() for line in f]
 
     # load json file with hyperparameters
-    if args.json is not None:
-        with open(args.json, 'r') as jfile:
-            params = json.load(jfile)
-    elif svc_model:
-        with open('models/dict_svc.json', 'r') as jfile:
-            params = json.load(jfile)
-    else:
-        with open('models/dict_gb.json', 'r') as jfile:
-            params = json.load(jfile)
+    with open(args.json, 'r') as jfile:
+        params = json.load(jfile)
 
     dataset = pd.read_csv(args.path, sep='\s+', header=0)
     # sort dataframe for reproducible results
-    dataset.sort_values(by=['sample_name'], inplace=True)  
+    dataset.sort_values(by=['sample_name'], inplace=True)
 
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
