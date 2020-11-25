@@ -2,7 +2,10 @@
 Automated Selection of High quality Libraries for the Extensive analYsis of Strandseq data (ASHLEYS)
 
 ASHLEYS is developed on Linux environments using Python3.7.
-For automatic installation and data prediction use the [pipeline](https://github.com/friendsofstrandseq/ashleys-qc-pipeline).
+For a full working example on how to use ASHLEYS, please take a look at the [processing pipeline](https://github.com/friendsofstrandseq/ashleys-qc-pipeline).
+Please note that the preprocessing steps in this pipeline, e.g. short-read alignment and read duplicate marking, are always
+required to prepare suitable input files for ASHLEYS; the pipeline (code) itself, however, is just an example implementation, and not
+*per se* part of ASHLEYS.
 
 ## Setup
 Clone the repository via
@@ -25,9 +28,11 @@ Now you should be able to see all possible modules with
 ```
 
 ## Feature Generation
-Create features for bam files for a given window size. <br>
+Compute features for one or more BAM files for a given window size. For a detailed explanation
+of what features are computed, please refer to the [feature documentation](Features.md).
+
 Example usage generating all necessary features for using the pretrained models for all 
-.bam files in a specified directory : 
+.bam files in the specified directory: 
 ``` python
 ./bin/ashleys.py -j 23 features -f [folder_with_bamfiles] -w 5000000 2000000 1000000 \
  800000 600000 400000 200000 -o [feature_table.tsv] 
