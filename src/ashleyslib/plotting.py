@@ -79,12 +79,13 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, com
             if compare is not None:
                 axs[axis[i]].hist(compare_features[feature_list[i]], alpha=alpha, bins=bin_list, color='green',
                                   label='Prediction data')
-        axs[axis[i]].set_title(feature_list[i])
+        # axs[axis[i]].set_title(feature_list[i])
+        axs[axis[i]].set_xlabel(feature_list[i])
 
     axs[4].legend(loc='upper right')
 
     for ax in axs.flat:
-        ax.set_xlabel('Value')
+        # ax.set_xlabel('Value')
         ax.set_ylabel('Count')
 
     fig.set_size_inches(16, 6)
