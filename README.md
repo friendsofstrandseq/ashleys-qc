@@ -48,8 +48,9 @@ Example usage:
 
 ## Prediction
 Predict the class probabilities for new cells based on pre-trained models or based on customized models. <br>
-The default model trained with support vector classification should identify low-quality cells of new data with high confidence. <br>
-Detailed information about the output interpretation can be found [here](Output.md)
+The default model trained with support vector classification should identify low-quality cells of new data with high confidence. 
+Detailed information about the output interpretation can be found [here](Output.md). 
+
 Example usage for prediction based on this pretrained model:
 ``` python
 ./bin/ashleys.py predict -p [feature_table.tsv] -o [output_folder] -m models/svc_default.pkl
