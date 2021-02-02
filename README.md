@@ -20,7 +20,7 @@ conda activate ashleys
 ```
 For final setup, run
  ``` python
-python setup.py develop
+python setup.py install
 ```
 Now you should be able to see all possible modules with
 ``` python
