@@ -55,6 +55,8 @@ Example usage for prediction based on this pretrained model:
 ``` python
 ./bin/ashleys.py predict -p [feature_table.tsv] -o [output_folder] -m models/svc_default.pkl
 ```
+When using the pretrained models, it is necessary to have `scikit-learn v.0.23.2` installed, as the models were generated with this version. 
+For customized models also a newer version of `scikit-learn` can be used.
 
 ## Plotting
 Plot the distribution of prediction probabilities. <br>
