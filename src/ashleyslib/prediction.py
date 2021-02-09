@@ -1,6 +1,7 @@
 import pandas as pd
 import pickle
 import logging
+import warnings
 
 
 def add_prediction_parser(subparsers):
@@ -23,7 +24,19 @@ def add_prediction_parser(subparsers):
 
 def predict_model(model_name, features):
     with open(model_name, 'rb') as m:
-        clf = pickle.load(m)
+        with warnings.catch_warnings(record=True) as w:
+            clf = pickle.load(m)
+            if len(w) != 0:
+                print('You are using a different version of scikit-learn than the one used for training the '
+                      'classification model. A correct prediction is not guaranteed. \n')
+
+                versions = str(w[0]).split('version')
+                if len(versions) > 2:
+                    version_model = versions[1][:8]
+                    version_installed = versions[2][:8]
+                    print('The model was trained with scikit-learn version ' + version_model +
+                          ' while you have version ' + version_installed + ' installed.\n')
+                print('We suggest to install the correct version of scikit-learn to use the trained model.')
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
     return prediction, probability
