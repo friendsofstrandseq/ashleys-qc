@@ -62,7 +62,7 @@ For customized models also a newer version of `scikit-learn` can be used.
 Plot the distribution of prediction probabilities. <br>
 Example usage:
 ``` python
-./bin/ashleys.py plot -p [output_folder]/prediction_probabilities.tsv -o [output_plot]
+./bin/ashleys.py plot -p [output_folder]/prediction.tsv -o [output_plot]
 ```
 
 ## Test Data
