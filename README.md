@@ -29,7 +29,7 @@ Now you should be able to see all possible modules with
 
 ## Feature Generation
 Compute features for one or more BAM files for a given window size. For a detailed explanation
-of what features are computed, please refer to the [feature documentation](data/Features.md).
+of what features are computed, please refer to the [feature documentation](docs/Features.md).
 
 Example usage generating all necessary features for using the pretrained models for all
 .bam files in the specified directory:
@@ -49,7 +49,7 @@ Example usage:
 ## Prediction
 Predict the class probabilities for new cells based on pre-trained models or based on customized models. <br>
 The default model trained with support vector classification should identify low-quality cells of new data with high confidence. 
-Detailed information about the output interpretation can be found [here](data/Output.md). 
+For detailed information about the generated files, please refer to the [output interpretation](docs/Output.md). 
 
 Example usage for prediction based on this pretrained model:
 ``` python
