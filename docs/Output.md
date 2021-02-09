@@ -6,6 +6,8 @@ and are again listed in `prediction_critical.tsv`. <br>
 If an annotation file was specified to compare the predicted class assignments,
 `prediction_accuracy.txt` provides performance information along with wrongly predicted cells.
 
+The structure of the output files is as follows, linked are the output files that can be generated for the [test data](../data):
+
 [`prediction.tsv`](../data/test_output_prediction.tsv):
 
 cell | prediction | probability
