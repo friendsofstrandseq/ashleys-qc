@@ -43,8 +43,8 @@ def predict_model(model_name, features):
 
 
 def compare_prediction(prediction_1, prediction_2, annotation, output):
-    dataset_1 = pd.read_csv(prediction_1, sep='\s+')
-    dataset_2 = pd.read_csv(prediction_2, sep='\s+')
+    dataset_1 = pd.read_csv(prediction_1, sep='\t')
+    dataset_2 = pd.read_csv(prediction_2, sep='\t')
     names = dataset_1['cell'].values
     probabilities_1 = dataset_1['probability'].values
     probabilities_2 = dataset_2['probability'].values
@@ -132,7 +132,7 @@ def run_prediction(args):
         return
 
     critical_bound = (0.3, 0.7)
-    dataset = pd.read_csv(args.path, sep='\s+')
+    dataset = pd.read_csv(args.path, sep='\t')
     features = dataset.drop(columns=['sample_name'])
     names = dataset['sample_name'].values
 
