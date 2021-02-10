@@ -34,14 +34,13 @@ def predict_model(model_name, features):
                     versions = str(message).split('version')
                     if len(versions) > 2 and issubclass(w[-1].category, UserWarning):
                         warn_message = 'You are using a different version of scikit-learn than the one used for ' \
-                                       'training classification model. A correct prediction is not guaranteed. \n'
+                                       'training the classification model. This may lead to unexpected behavior.\n'
                         version_model = versions[1][:8]
                         version_installed = versions[2][:8]
                         warn_message += 'The model was trained with scikit-learn version ' + version_model + \
                                         'while you have version ' + version_installed + ' installed.\n' + \
-                                        'We suggest to install the corresponding version of scikit-learn to use the ' \
-                                        'trained model. However, a result is provided with the currently installed ' \
-                                        'version.\n'
+                                        'We recommend installing the identical version of scikit-learn for operational safety. ' \
+                                        'However, the ASHLEYS run will now proceed...\n'
 
                     else:
                         original_warning = w
