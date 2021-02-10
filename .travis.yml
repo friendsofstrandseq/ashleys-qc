@@ -1,0 +1,26 @@
+os: linux
+arch: amd64
+dist: xenial
+
+language: python
+
+python:
+  - "3.6"
+  - "3.7"
+  - "3.8"
+  - "3.9"
+
+branches:
+  only:
+  - develop
+  - master
+
+install:
+  - python setup.py install
+
+script:
+  - pytest
+
+jobs:
+  allow_failures:
+    - python: "3.6"
