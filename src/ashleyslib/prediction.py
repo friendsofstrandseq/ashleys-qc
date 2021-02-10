@@ -36,7 +36,7 @@ def predict_model(model_name, features):
                     version_installed = versions[2][:8]
                     print('The model was trained with scikit-learn version ' + version_model +
                           ' while you have version ' + version_installed + ' installed.\n')
-                print('We suggest to install the correct version of scikit-learn to use the trained model.')
+                print('We suggest to install the corresponding version of scikit-learn to use the trained model.')
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
     return prediction, probability
