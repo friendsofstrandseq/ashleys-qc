@@ -1,6 +1,7 @@
 import pandas as pd
 import pickle
 import logging
+import warnings
 
 
 def add_prediction_parser(subparsers):
@@ -23,15 +24,42 @@ def add_prediction_parser(subparsers):
 
 def predict_model(model_name, features):
     with open(model_name, 'rb') as m:
-        clf = pickle.load(m)
+        warn_message = ''
+        original_warning = []
+        # check for UserWarning of different sklearn versions
+        with warnings.catch_warnings(record=True) as w:
+            clf = pickle.load(m)
+            if len(w) != 0:
+                for message in w:
+                    versions = str(message).split('version')
+                    if len(versions) > 2 and issubclass(w[-1].category, UserWarning):
+                        warn_message = 'You are using a different version of scikit-learn than the one used for ' \
+                                       'training the classification model. This may lead to unexpected behavior.\n'
+                        version_model = versions[1][:8]
+                        version_installed = versions[2][:8]
+                        warn_message += 'The model was trained with scikit-learn version ' + version_model + \
+                                        'while you have version ' + version_installed + ' installed.\n' + \
+                                        'We recommend installing the identical version of scikit-learn for operational safety. ' \
+                                        'However, the ASHLEYS run will now proceed...\n'
+
+                    else:
+                        original_warning = w
+
+        # print new (or old) warnings outside of catch:
+        if warn_message:
+            warnings.warn(warn_message)
+        if original_warning:
+            for i in range(len(original_warning)):
+                warnings.warn(original_warning[i].message, original_warning[-1].category)
+
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
     return prediction, probability
 
 
 def compare_prediction(prediction_1, prediction_2, annotation, output):
-    dataset_1 = pd.read_csv(prediction_1, sep='\s+')
-    dataset_2 = pd.read_csv(prediction_2, sep='\s+')
+    dataset_1 = pd.read_csv(prediction_1, sep='\t')
+    dataset_2 = pd.read_csv(prediction_2, sep='\t')
     names = dataset_1['cell'].values
     probabilities_1 = dataset_1['probability'].values
     probabilities_2 = dataset_2['probability'].values
@@ -92,7 +120,7 @@ def evaluate_prediction(probability, annotation, names, output, critical_bound):
                 if p < critical_bound[1]:
                     fp_critical.append(n)
 
-    with open(output[0] + '_accuracy.' + output[1], 'w') as f:
+    with open(output[0] + '_accuracy.txt', 'w') as f:
         f.write('false positive predictions: ' + str(fp_cells) + '\n')
         f.write('false positive and critical predictions: ' + str(fp_critical) + '\n')
         f.write('false negative predictions: ' + str(fn_cells) + '\n')
@@ -119,7 +147,7 @@ def run_prediction(args):
         return
 
     critical_bound = (0.3, 0.7)
-    dataset = pd.read_csv(args.path, sep='\s+')
+    dataset = pd.read_csv(args.path, sep='\t')
     features = dataset.drop(columns=['sample_name'])
     names = dataset['sample_name'].values
 
@@ -131,7 +159,7 @@ def run_prediction(args):
         evaluate_prediction(probability, args.annotation, names, file_name, critical_bound)
 
     pred_file = open(output, 'w')
-    critical = open(file_name[0] + '_critical.' + file_name[1], 'w')
+    critical = open(file_name[0] + '_critical.tsv', 'w')
     pred_file.write('cell\tprediction\tprobability\n')
     critical.write('cell\tprobability\n')
     for i in range(len(names)):

@@ -20,45 +20,59 @@ conda activate ashleys
 ```
 For final setup, run
  ``` python
-python setup.py develop
+python setup.py install
 ```
-Now you should be able to see all possible modules with 
+Now you should be able to see all possible modules with
 ``` python
 ./bin/ashleys.py --help
 ```
 
+## Build status
+
+Develop branch:
+
+[![Build Status](https://travis-ci.org/friendsofstrandseq/ashleys-qc.svg?branch=develop)](https://travis-ci.org/friendsofstrandseq/ashleys-qc)
+
+Master branch:
+
+[![Build Status](https://travis-ci.org/friendsofstrandseq/ashleys-qc.svg?branch=master)](https://travis-ci.org/friendsofstrandseq/ashleys-qc)
+
 ## Feature Generation
 Compute features for one or more BAM files for a given window size. For a detailed explanation
-of what features are computed, please refer to the [feature documentation](Features.md).
+of what features are computed, please refer to the [feature documentation](docs/Features.md).
 
-Example usage generating all necessary features for using the pretrained models for all 
-.bam files in the specified directory: 
+Example usage generating all necessary features for using the pretrained models for all
+.bam files in the specified directory:
 ``` python
 ./bin/ashleys.py -j 23 features -f [folder_with_bamfiles] -w 5000000 2000000 1000000 \
- 800000 600000 400000 200000 -o [feature_table.tsv] 
+ 800000 600000 400000 200000 -o [feature_table.tsv]
 ```
 
 ## Model Training
 Train a new classification model based on an annotation file specifying class 1 cells.
 The model is trained with support vector classification based on grid search on hyperparamters. <br>
-Example usage: 
+Example usage:
 ``` python
-./bin/ashleys.py train -p [feature_table.tsv] -a [annotation.txt] -o [output.tsv] 
+./bin/ashleys.py train -p [feature_table.tsv] -a [annotation.txt] -o [output.tsv]
 ```
 
 ## Prediction
 Predict the class probabilities for new cells based on pre-trained models or based on customized models. <br>
-The default model trained with support vector classification should identify low quality cells of new data with high confidence. <br>
-Example usage for prediction based on this pretrained model: 
+The default model trained with support vector classification should identify low-quality cells of new data with high confidence. 
+For detailed information about the generated files, please refer to the [output interpretation](docs/Output.md). 
+
+Example usage for prediction based on this pretrained model:
 ``` python
 ./bin/ashleys.py predict -p [feature_table.tsv] -o [output_folder] -m models/svc_default.pkl
 ```
+When using the pretrained models, it is necessary to have `scikit-learn v.0.23.2` installed, as the models were generated with this version. 
+For customized models also a newer version of `scikit-learn` can be used.
 
 ## Plotting
 Plot the distribution of prediction probabilities. <br>
-Example usage: 
+Example usage:
 ``` python
-./bin/ashleys.py plot -p [output_folder]/prediction_probabilities.tsv -o [output_plot]
+./bin/ashleys.py plot -p [output_folder]/prediction.tsv -o [output_plot]
 ```
 
 ## Test Data

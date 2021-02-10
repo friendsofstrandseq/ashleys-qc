@@ -127,12 +127,12 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
         for i in range(0, length, step_size):
             window_count += 1
             s = str(chrom) + str(i)
-            window_collection.update({s:1})
+            window_collection.update({s: 1})
             window_collection_wc.update({s: 1})
             window_collection_wc.update({s+'W': 1})
             window_collection_wc.update({s+'C': 1})
             for read in bamfile.fetch(chrom, i, i+window_size):
-                window_collection.update({s:1})
+                window_collection.update({s: 1})
                 if read.is_unmapped:
                     if read.reference_start > i+step_size or i == 0:
                         count_collection.update({'unmapped': 1})
