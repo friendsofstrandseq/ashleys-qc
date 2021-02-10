@@ -16,11 +16,12 @@ def test_pickle_warning():
     if sklearn.__version__ == '0.23.2':
         with pytest.warns(None) as record:
             predict_model(model_name, features)
-        assert len(record) == 0
+        assert len(record) == 0 or (not record[i].message.contains('You are using a different version of scikit-learn')
+                                    for i in range(len(record)))
     else:
         with pytest.warns(UserWarning, match='You are using a different version of scikit-learn') as record:
             predict_model(model_name, features)
-        assert len(record) == 1
+        assert len(record) >= 1
 
     return True
 
