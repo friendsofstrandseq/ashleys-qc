@@ -27,16 +27,19 @@ def predict_model(model_name, features):
         with warnings.catch_warnings(record=True) as w:
             clf = pickle.load(m)
             if len(w) != 0:
-                print('You are using a different version of scikit-learn than the one used for training the '
-                      'classification model. A correct prediction is not guaranteed. \n')
-
                 versions = str(w[0]).split('version')
                 if len(versions) > 2:
+                    print('You are using a different version of scikit-learn than the one used for training the '
+                          'classification model. A correct prediction is not guaranteed. \n')
                     version_model = versions[1][:8]
                     version_installed = versions[2][:8]
                     print('The model was trained with scikit-learn version ' + version_model +
                           ' while you have version ' + version_installed + ' installed.\n')
-                print('We suggest to install the corresponding version of scikit-learn to use the trained model.')
+                    print('We suggest to install the corresponding version of scikit-learn to use the trained model. '
+                          'However, a result is provided with the currently installed version.')
+
+                else:
+                    print(w)
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
     return prediction, probability
