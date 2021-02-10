@@ -25,24 +25,34 @@ def add_prediction_parser(subparsers):
 def predict_model(model_name, features):
     with open(model_name, 'rb') as m:
         warn_message = ''
+        original_warning = []
+        # check for UserWarning of different sklearn versions
         with warnings.catch_warnings(record=True) as w:
             clf = pickle.load(m)
             if len(w) != 0:
-                versions = str(w[0]).split('version')
-                if len(versions) > 3 and issubclass(w[-1].category, UserWarning):
-                    warn_message = 'You are using a different version of scikit-learn than the one used for training ' \
-                                   'the classification model. A correct prediction is not guaranteed. \n'
-                    version_model = versions[1][:8]
-                    version_installed = versions[2][:8]
-                    warn_message += 'The model was trained with scikit-learn version ' + version_model + \
-                                    ' while you have version ' + version_installed + ' installed.\n' + \
-                                    'We suggest to install the corresponding version of scikit-learn to use the ' \
-                                    'trained model. However, a result is provided with the currently installed version.'
+                for message in w:
+                    versions = str(message).split('version')
+                    if len(versions) > 2 and issubclass(w[-1].category, UserWarning):
+                        warn_message = 'You are using a different version of scikit-learn than the one used for ' \
+                                       'training classification model. A correct prediction is not guaranteed. \n'
+                        version_model = versions[1][:8]
+                        version_installed = versions[2][:8]
+                        warn_message += 'The model was trained with scikit-learn version ' + version_model + \
+                                        'while you have version ' + version_installed + ' installed.\n' + \
+                                        'We suggest to install the corresponding version of scikit-learn to use the ' \
+                                        'trained model. However, a result is provided with the currently installed ' \
+                                        'version.\n'
 
-                else:
-                    print('original warning message')
+                    else:
+                        original_warning = w
+
+        # print new (or old) warnings outside of catch:
         if warn_message:
             warnings.warn(warn_message)
+        if original_warning:
+            for i in range(len(original_warning)):
+                warnings.warn(original_warning[i].message, original_warning[-1].category)
+
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
     return prediction, probability
