@@ -79,7 +79,6 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
 
 
 # add first column to dataset, based on annotation file: all cells contained in file are labeled 1
-# TODO: include case for GM vs NA???
 def add_class_column(dataset, annotation):
     prediction_dataset = pd.DataFrame()
     names = dataset['sample_name'].values
@@ -253,7 +252,7 @@ def run_model_training(args):
     with open(args.json, 'r') as jfile:
         params = json.load(jfile)
 
-    dataset = pd.read_csv(args.path, sep='\s+', header=0)
+    dataset = pd.read_csv(args.path, sep='\t', header=0)
     # sort dataframe for reproducible results
     dataset.sort_values(by=['sample_name'], inplace=True)
 

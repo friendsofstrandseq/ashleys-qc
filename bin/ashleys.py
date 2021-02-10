@@ -9,9 +9,6 @@ from ashleyslib.plotting import add_plotting_parser
 
 
 def parse_command_line():
-    """
-    :return:
-    """
     parser = argparse.ArgumentParser(add_help=True)
     # parser.add_argument('--version', '-v', action='version', version=__version__)
 
@@ -25,10 +22,6 @@ def parse_command_line():
 
 
 def add_sub_parsers(main_parser):
-    """
-    :param main_parser:
-    :return:
-    """
     subparsers = main_parser.add_subparsers(dest='subparser_name', title='Run modes')
     subparsers = add_features_parser(subparsers)
     subparsers = add_training_parser(subparsers)
