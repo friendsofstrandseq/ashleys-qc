@@ -27,6 +27,16 @@ Now you should be able to see all possible modules with
 ./bin/ashleys.py --help
 ```
 
+## Build status
+
+Develop branch:
+
+[![Build Status](https://travis-ci.org/friendsofstrandseq/ashleys-qc.svg?branch=develop)](https://travis-ci.org/friendsofstrandseq/ashleys-qc)
+
+Master branch:
+
+[![Build Status](https://travis-ci.org/friendsofstrandseq/ashleys-qc.svg?branch=master)](https://travis-ci.org/friendsofstrandseq/ashleys-qc)
+
 ## Feature Generation
 Compute features for one or more BAM files for a given window size. For a detailed explanation
 of what features are computed, please refer to the [feature documentation](docs/Features.md).
