@@ -26,10 +26,30 @@ def test_pickle_warning():
 
 
 def test_module_import():
-    import pysam
-    import matplotlib
-    import numpy
-    assert 'pysam' in sys.modules
-    assert 'matplotlib' in sys.modules
-    assert 'numpy' in sys.modules
+    err_msg = ''
+    try:
+        import pysam
+    except ImportError:
+        err_msg += 'Module pysam could not be imported.\n'
+    
+    try:
+        import scipy
+    except ImportError:
+        err_msg += 'Module "scipy" could not be imported.\n'
+
+    try:
+        import matplotlib
+    except ImportError:
+        err_msg += 'Module "matplotlib" could not be imported.\n'
+
+    try:
+        import numpy
+    except ImportError:
+        err_msg += 'Module "numpy" could not be imported.\n'
+
+    if err_msg:
+        raise RuntimeError('ERROR: at least one external module import failed; '
+                            'please make sure that your environment setup is complete. '
+                            'Recorded import errors:\n{}'.format(err_msg))
+
     return True
