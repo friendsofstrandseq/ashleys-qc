@@ -24,22 +24,25 @@ def add_prediction_parser(subparsers):
 
 def predict_model(model_name, features):
     with open(model_name, 'rb') as m:
+        warn_message = ''
         with warnings.catch_warnings(record=True) as w:
             clf = pickle.load(m)
             if len(w) != 0:
                 versions = str(w[0]).split('version')
-                if len(versions) > 2:
-                    print('You are using a different version of scikit-learn than the one used for training the '
-                          'classification model. A correct prediction is not guaranteed. \n')
+                if len(versions) > 3 and issubclass(w[-1].category, UserWarning):
+                    warn_message = 'You are using a different version of scikit-learn than the one used for training ' \
+                                   'the classification model. A correct prediction is not guaranteed. \n'
                     version_model = versions[1][:8]
                     version_installed = versions[2][:8]
-                    print('The model was trained with scikit-learn version ' + version_model +
-                          ' while you have version ' + version_installed + ' installed.\n')
-                    print('We suggest to install the corresponding version of scikit-learn to use the trained model. '
-                          'However, a result is provided with the currently installed version.')
+                    warn_message += 'The model was trained with scikit-learn version ' + version_model + \
+                                    ' while you have version ' + version_installed + ' installed.\n' + \
+                                    'We suggest to install the corresponding version of scikit-learn to use the ' \
+                                    'trained model. However, a result is provided with the currently installed version.'
 
                 else:
-                    print(w)
+                    print('original warning message')
+        if warn_message:
+            warnings.warn(warn_message)
         prediction = clf.predict(features)
         probability = clf.predict_proba(features)[:, 1]
     return prediction, probability
