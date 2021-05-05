@@ -1,0 +1,81 @@
+NBT19 data set
+
+testing data
+
+source material:
+    "transformed epithelial cells"
+    "telomerase-immortalized retinal pigment epithelial (RPE) cells"
+    "female"
+    "number of donors: 1"
+
+sample RPE1:
+    lib_count_total=96
+    lib_count_hiq=80
+    variation_events:
+        DEL_DUP_INV_INVDUP=54
+        CNA=DUP-10q
+        TRLOC=1
+        
+sample C7:
+    lib_count_total=169
+    lib_count_hiq=154
+    variation_events:
+        DEL_DUP_INV_INVDUP=53
+        CNA=DEL-13q
+        TRLOC=1
+        BFB=4
+
+sample BM510:
+    source="derived from RPE-1 with CAST protocol (TP53 knock-out, silenced mitotic spindle machinery)"
+    lib_count_total=191
+    lib_count_hiq=145
+    variation_events:
+        DEL_DUP_INV_INVDUP=67
+        TRLOC=4
+        BFB=11
+
+====================
+        
+HGSVC data set
+
+training data
+
+source material:
+    "EBV-transformed lymphoblastoid cell lines"
+    "male/female"
+    "number of donors: 24"
+    
+samples:
+    sample_count=24
+    lib_count_total=2304
+    lib_count_hiq=1146
+    variation_events:
+        "unreported per sample"
+        "expected normal/average"
+        BFB=1(NA20509,17q)
+
+
+=====================
+
+model parameters:
+svc_default:
+    C = 10
+    kernel = linear
+
+svc_stringent:
+    C = 10
+    kernel = linear
+
+gb_stringent:
+    learning_rate: 0.15
+    max_depth: 5
+    min_samples_leaf: 2
+    min_samples_split: 10
+    n_estimators: 50
+
+gb_lenient:
+    learning_rate: 0.05
+    max_depth: 10
+    min_samples_leaf: 5
+    min_samples_split: 2
+    n_estimators': 500

@@ -50,22 +50,27 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, com
     plt.subplots_adjust(hspace=0.35, wspace=0.25)
 
     axis = range(len(feature_list))
+    # for derailed views at the interesting range of the features:
+    interesting_range = [(0.65, 0.9), (0.65, 0.9), (0, 0.25), (0.75, 1), (0, 0.5)]  # svc comb6
+    # interesting_range = [(0.65, 0.9), (0, 0.25), (0, 0.25), (0, 0.5), (0, 0.25)]  # gb comb6
     for i in range(len(feature_list)):
-        axs[axis[i]].set_xlim(0, 0.2)
-        bin_list = np.arange(0, 0.2, 0.002)
-        axs[axis[i]].set_ylim(0, 100)
+        a, b = (0, 1)   # steps = 0.01 y_lim=200
+        # a, b = interesting_range[i] #steps = 0.005 y_lim=100
+        axs[axis[i]].set_xlim(a, b)
+        bin_list = np.arange(a, b, 0.01)
+        axs[axis[i]].set_ylim(0, 200)
         axs[axis[i]].spines['top'].set_visible(False)
         axs[axis[i]].spines['right'].set_visible(False)
         if annotation is not None:
-            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='hgsvc - Class 0',
-                              color='#fdae61')
-            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='hgsvc - Class 1',
-                              color='#d7191c')
+            axs[axis[i]].hist(ones_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='HGSVC - Class 1',
+                              color='#d7191c')  # red
+            axs[axis[i]].hist(zeros_hist_table[feature_list[i]], alpha=alpha, bins=bin_list, label='HGSVC - Class 0',
+                              color='#fdae61')  # orange
             if compare_annotation is not None:
                 axs[axis[i]].hist(compare_ones[feature_list[i]], alpha=alpha, bins=bin_list,
-                                  label='nbt19 - class 1', color='#2c7bb6')
+                                  label='NBT - Class 1', color='#2c7bb6')  # blue
                 axs[axis[i]].hist(compare_zeroes[feature_list[i]], alpha=alpha, bins=bin_list,
-                                  label='nbt19 - class 0', color='#abd9e9')
+                                  label='NBT - Class 0', color='#abd9e9')  # light blue
             elif compare is not None:
                 axs[axis[i]].hist(compare_features[feature_list[i]], alpha=alpha, bins=bin_list, color='green',
                                   label='Prediction data')
@@ -74,16 +79,17 @@ def plot_feature_range(feature_table, annotation, feature_list, output_file, com
             if compare is not None:
                 axs[axis[i]].hist(compare_features[feature_list[i]], alpha=alpha, bins=bin_list, color='green',
                                   label='Prediction data')
-        axs[axis[i]].set_title(feature_list[i])
+        # axs[axis[i]].set_title(feature_list[i])
+        axs[axis[i]].set_xlabel(feature_list[i])
 
-    axs[0].legend(loc='upper right')
+    axs[4].legend(loc='upper right')
 
     for ax in axs.flat:
-        ax.set_xlabel('Value')
+        # ax.set_xlabel('Value')
         ax.set_ylabel('Count')
 
     fig.set_size_inches(16, 6)
-    plt.savefig(output_file)
+    plt.savefig(output_file, bbox_inches='tight')
     return
 
 
@@ -92,8 +98,8 @@ def plot_wc_distribution(w_list, output_file):
     fig, ax = plt.subplots(1)
     ax.hist(w_list, bins=200)
     size = 20
-    ax.set_xlabel('Watson reads percentage', fontsize=size)
-    ax.set_ylabel('count', fontsize=size)
+    ax.set_xlabel('Fraction of Watson reads', fontsize=size)
+    ax.set_ylabel('Count', fontsize=size)
     ax.set_xlim(0, 1)
     ax.spines['top'].set_visible(False)
 
@@ -109,7 +115,7 @@ def plot_wc_distribution(w_list, output_file):
     ax.text(0.92, height - 10, 'W100', color=color_features, fontsize=size)
     fig = plt.gcf()
     fig.set_size_inches(16, 5)
-    plt.savefig(output_file, dpi=200)
+    plt.savefig(output_file, dpi=200, bbox_inches='tight')
     return
 
 
@@ -139,9 +145,9 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
             else:
                 class_1.append(p)
 
-        alpha = 0.7
-        plt.hist(class_0, bins=bins, alpha=alpha, label='Class 0')
-        plt.hist(class_1, bins=bins, alpha=alpha, label='Class 1')
+        alpha = 0.9
+        plt.hist(class_1, bins=bins, alpha=alpha, label='Class 1', color='tab:blue')
+        plt.hist(class_0, bins=bins, alpha=alpha, label='Class 0', color='#8fbbd9')
         plt.legend(loc='upper center')
 
     else:
@@ -149,8 +155,8 @@ def plot_prediction_hist(output_file, probability_file, annotation_file):
 
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
-    plt.xlabel('class 1 probability', fontsize=size)
-    plt.ylabel('count', fontsize=size)
+    plt.xlabel('Probability of class 1', fontsize=size)
+    plt.ylabel('Count', fontsize=size)
     plt.savefig(output_file, bbox_inches='tight')
 
     return
@@ -171,7 +177,8 @@ def run_plotting(args):
     if args.probabilities is not None:
         plot_prediction_hist(output, args.probabilities, args.annotation)
     if args.feature_table is not None:
-        feature_list = ['W40_5.0mb', 'W70_5.0mb', 'W20_0.6mb', 'W90_0.6mb']  # , 'total_0.2mb']
+        feature_list = ['total_0.2mb', 'total_0.4mb', 'W90_2.0mb', 'total_0.6mb', 'W100_2.0mb']  # svc comb6
+        # feature_list = ['total_0.4mb', 'W70_5.0mb', 'W90_2.0mb', 'W100_5.0mb', 'W20_0.6mb']  # gb comb6
         if args.feature_list is not None:
             feature_list = args.feature_list
         plot_feature_range(args.feature_table, args.annotation, feature_list, output, args.compare,
