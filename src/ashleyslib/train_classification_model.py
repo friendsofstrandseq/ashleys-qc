@@ -9,23 +9,56 @@ import pickle
 import logging
 
 
+logger = logging.getLogger(__name__)
+
+
 def add_training_parser(subparsers):
-    parser = subparsers.add_parser('train', help='train new classification model')
-    parser.add_argument('--iterations', '-i', default=50, required=False, type=int,
-                        help="number of times new datasets are generated for model creation, initial: 50")
-    parser.add_argument('--path', '-p', help='path to feature table', required=True)
-    parser.add_argument('--annotation', '-a', help='path to annotation file containing class 1 cells', required=True)
-    parser.add_argument('--features', '-f', required=False, type=int,
-                        help='number of features used from feature table, using all if not specified')
-    parser.add_argument('--output', '-o', help='name of output file', required=True)
-    parser.add_argument('--cv_runs', '-c', help='number of cv runs performed by grid search, initial: 5',
-                        required=False, default=5, type=int)
-    parser.add_argument('--json', '-js', help='json file with the parameters for grid search', required=True)
+    parser = subparsers.add_parser("train", help="train new classification model")
+    parser.add_argument(
+        "--iterations",
+        "-i",
+        default=50,
+        required=False,
+        type=int,
+        help="number of times new datasets are generated for model creation, initial: 50",
+    )
+    parser.add_argument("--path", "-p", help="path to feature table", required=True)
+    parser.add_argument(
+        "--annotation",
+        "-a",
+        help="path to annotation file containing class 1 cells",
+        required=True,
+    )
+    parser.add_argument(
+        "--features",
+        "-f",
+        required=False,
+        type=int,
+        help="number of features used from feature table, using all if not specified",
+    )
+    parser.add_argument("--output", "-o", help="name of output file", required=True)
+    parser.add_argument(
+        "--cv_runs",
+        "-c",
+        help="number of cv runs performed by grid search, initial: 5",
+        required=False,
+        default=5,
+        type=int,
+    )
+    parser.add_argument(
+        "--json", "-js", help="json file with the parameters for grid search", required=True
+    )
 
     model_parser = parser.add_mutually_exclusive_group(required=False)
-    model_parser.add_argument('--svc', dest='classifier', action='store_true',
-                              help='running support vector classification')
-    model_parser.add_argument('--gb', dest='classifier', action='store_false', help='running gradient boosting')
+    model_parser.add_argument(
+        "--svc",
+        dest="classifier",
+        action="store_true",
+        help="running support vector classification",
+    )
+    model_parser.add_argument(
+        "--gb", dest="classifier", action="store_false", help="running gradient boosting"
+    )
     parser.set_defaults(classifier=True)
     parser.set_defaults(execute=run_model_training)
 
@@ -40,20 +73,20 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
     fn = 0
     counter = 0
     wrong_ids = []
-    names = test['sample_name'].values
+    names = test["sample_name"].values
 
     # create dataframe with overall prediction results:
     # if cell was part of test dataset: value equals prediction probability (for class 1)
     # if cell was part of training dataset: value is -1
     rows, cols = prediction_dataset.shape
     insert_column = [-1] * rows
-    all_names = prediction_dataset['name'].values
+    all_names = prediction_dataset["name"].values
     for n, i in zip(all_names, range(rows)):
         if n not in names:
             continue
         pred = prediction[list(names).index(n)]
         insert_column[i] = round(pred, 4)
-    prediction_dataset['i' + str(current_iteration)] = insert_column
+    prediction_dataset["i" + str(current_iteration)] = insert_column
 
     zero_one_prediction = []
     for p in prediction:
@@ -81,7 +114,7 @@ def evaluation(prediction, true_values, test, prediction_dataset, current_iterat
 # add first column to dataset, based on annotation file: all cells contained in file are labeled 1
 def add_class_column(dataset, annotation):
     prediction_dataset = pd.DataFrame()
-    names = dataset['sample_name'].values
+    names = dataset["sample_name"].values
     class_list = []
 
     for n in names:
@@ -90,36 +123,36 @@ def add_class_column(dataset, annotation):
         else:
             class_list.append(0)
 
-    dataset.insert(loc=0, column='class', value=class_list, allow_duplicates=True)
-    prediction_dataset['name'] = names
-    prediction_dataset['class'] = class_list
+    dataset.insert(loc=0, column="class", value=class_list, allow_duplicates=True)
+    prediction_dataset["name"] = names
+    prediction_dataset["class"] = class_list
     return dataset, prediction_dataset
 
 
 # split dataset into train and test data, with equal class size for training
 def train_test_split(dataset, test_flag):
-    y = dataset['class'].values
+    y = dataset["class"].values
     size = len(dataset.index)
     df_0 = pd.DataFrame(columns=list(dataset.columns))
     df_1 = pd.DataFrame(columns=list(dataset.columns))
 
     for s in range(size):
         if y[s] == 0:
-            df_0 = df_0.append(dataset[s:s+1])
+            df_0 = df_0.append(dataset[s : s + 1])
         if y[s] == 1:
-            df_1 = df_1.append(dataset[s:s+1])
+            df_1 = df_1.append(dataset[s : s + 1])
 
     smaller_size = min(len(df_0.index), len(df_1.index))
     if test_flag:
-        zeros = np.split(df_0, [int(smaller_size+1)])
-        ones = np.split(df_1, [int(smaller_size+1)])
+        zeros = np.split(df_0, [int(smaller_size + 1)])
+        ones = np.split(df_1, [int(smaller_size + 1)])
 
         train = pd.concat([zeros[0], ones[0]])
         test = []
 
     else:
-        zeros = np.split(df_0, [int(((smaller_size+1)/4)*3)])
-        ones = np.split(df_1, [int(((smaller_size+1)/4)*3)])
+        zeros = np.split(df_0, [int(((smaller_size + 1) / 4) * 3)])
+        ones = np.split(df_1, [int(((smaller_size + 1) / 4) * 3)])
 
         train = pd.concat([zeros[0], ones[0]])
         test = pd.concat([zeros[1], ones[1]])
@@ -134,23 +167,36 @@ def train_test_split(dataset, test_flag):
 def feature_importance(imp_file, iteration, imp_values):
     imp_file.write(str(iteration))
     for i in imp_values:
-        imp_file.write('\t' + str(i))
-    imp_file.write('\n')
+        imp_file.write("\t" + str(i))
+    imp_file.write("\n")
 
 
 # create model (gradient boosting or support vector)
-def create_model(test, train, model, features, log, parameters, feature_imp_file, n, log_all_models,
-                 prediction_dataset, current_iteration, results, cv_runs, n_jobs):
+def create_model(
+    test,
+    train,
+    model,
+    features,
+    parameters,
+    feature_imp_file,
+    n,
+    log_all_models,
+    prediction_dataset,
+    current_iteration,
+    results,
+    cv_runs,
+    n_jobs,
+):
 
-    y_train = train['class'].values
-    y_train = y_train.astype('int')
-    y_test = test['class'].values
+    y_train = train["class"].values
+    y_train = y_train.astype("int")
+    y_test = test["class"].values
 
-    x_train = train.iloc[:, 1:features+1].values
-    x_test = test.iloc[:, 1:features+1].values
-    samples_test = test.loc[:, 'sample_name'].values
+    x_train = train.iloc[:, 1 : features + 1].values
+    x_test = test.iloc[:, 1 : features + 1].values
+    samples_test = test.loc[:, "sample_name"].values
 
-    if model == 'gb':
+    if model == "gb":
         clf, feature_imp = create_gb(x_train, y_train, parameters, cv_runs, n_jobs)
         feature_importance(feature_imp_file, n, feature_imp)
         prediction = clf.predict_proba(x_test)[:, 1]
@@ -161,24 +207,46 @@ def create_model(test, train, model, features, log, parameters, feature_imp_file
 
     params = clf.best_params_
 
-    fp, fn, tp, tn, wrong, prediction_dataset = evaluation(prediction, y_test, test, prediction_dataset,
-                                                           current_iteration)
+    fp, fn, tp, tn, wrong, prediction_dataset = evaluation(
+        prediction, y_test, test, prediction_dataset, current_iteration
+    )
     accuracy = (tp + tn) / (tp + tn + fp + fn)
-    f1 = (2*tp)/(2*tp + fp + fn)
+    f1 = (2 * tp) / (2 * tp + fp + fn)
     results[0] += accuracy
     results[1] += f1
     results[2] += tp
     results[3] += tn
     results[4] += fp
     results[5] += fn
-    log_all_models.write(str(round(accuracy, 4)) + '\t' + str(round(tp / (tp + fn), 4)) + '\t' +
-                         str(round(tn / (tn + fp), 4)) + '\t' + str(wrong) + '\n')
+    log_all_models.write(
+        str(round(accuracy, 4))
+        + "\t"
+        + str(round(tp / (tp + fn), 4))
+        + "\t"
+        + str(round(tn / (tn + fp), 4))
+        + "\t"
+        + str(wrong)
+        + "\n"
+    )
 
-    log.info('best parameter combination: ' + str(params))
-    log.info('with accuracy: ' + str(accuracy) + ' and F1 score: ' + str(f1))
-    log.info('sensitivity: {}, specificity: {}, precision: {}'.format(tp / (tp + fn), tn / (tn + fp), tp / (tp + fp)))
-    log.info('false positives: ' + str(fp) + ' false negatives: ' + str(fn) + ' true positives: ' + str(tp) +
-             ' true negatives: ' + str(tn) + '\n')
+    logger.info("best parameter combination: " + str(params))
+    logger.info("with accuracy: " + str(accuracy) + " and F1 score: " + str(f1))
+    logger.info(
+        "sensitivity: {}, specificity: {}, precision: {}".format(
+            tp / (tp + fn), tn / (tn + fp), tp / (tp + fp)
+        )
+    )
+    logger.info(
+        "false positives: "
+        + str(fp)
+        + " false negatives: "
+        + str(fn)
+        + " true positives: "
+        + str(tp)
+        + " true negatives: "
+        + str(tn)
+        + "\n"
+    )
 
     return wrong, samples_test, results, prediction_dataset
 
@@ -221,11 +289,19 @@ def outfile_wrong_predictions(wrong, samples, output_file):
             else:
                 samples_tested[s] = 1
 
-    output_file.write('samples\twrong_predictions\ttested\tpercentage\n')
+    output_file.write("samples\twrong_predictions\ttested\tpercentage\n")
 
     for key, value in sorted(dict_wrong.items()):
-        output_file.write(str(key) + '\t' + str(value) + '\t' + str(samples_tested[key]) + '\t' +
-                          str(round(value/samples_tested[key] * 100, 2)) + '\n')
+        output_file.write(
+            str(key)
+            + "\t"
+            + str(value)
+            + "\t"
+            + str(samples_tested[key])
+            + "\t"
+            + str(round(value / samples_tested[key] * 100, 2))
+            + "\n"
+        )
 
     return
 
@@ -237,24 +313,19 @@ def run_model_training(args):
     svc_model = args.classifier
     test_flag = False
 
-    output_file = open(args.output, 'w')
-    log_name = args.output.split('.tsv')
-    log_file = log_name[0] + '.log'
-    if args.logging is not None:
-        log_file = args.logging
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',
-                        level=logging.INFO, handlers=[logging.FileHandler(log_file)])
+    output_file = open(args.output, "w")
+    log_name = args.output.split(".tsv")
 
     with open(args.annotation) as f:
         annotation = [line.rstrip() for line in f]
 
     # load json file with hyperparameters
-    with open(args.json, 'r') as jfile:
+    with open(args.json, "r") as jfile:
         params = json.load(jfile)
 
-    dataset = pd.read_csv(args.path, sep='\t', header=0)
+    dataset = pd.read_csv(args.path, sep="\t", header=0)
     # sort dataframe for reproducible results
-    dataset.sort_values(by=['sample_name'], inplace=True)
+    dataset.sort_values(by=["sample_name"], inplace=True)
 
     feature_names = dataset.columns
     dataset, prediction_dataset = add_class_column(dataset, annotation)
@@ -262,70 +333,101 @@ def run_model_training(args):
     if features is None:
         features = dataset.shape[1] - 2
 
-    log_all_models = open(log_name[0] + '_model_log.tsv', 'w')
-    log_feature_imp = open(log_name[0] + '_feature_imp.tsv', 'w')
+    log_all_models = open(log_name[0] + "_model_log.tsv", "w")
+    log_feature_imp = open(log_name[0] + "_feature_imp.tsv", "w")
     wrong_predictions = []
     samples_tested = []
 
-    logging.info('Input: ' + str(args.path))
-    logging.info('used parameters: ' + str(params))
-    log_all_models.write('accuracy\tsensitivity\tspecificity\twrong_predicted\n')
-    feature_importance(log_feature_imp, 'iteration', feature_names[:-1])
+    logger.info("Input: " + str(args.path))
+    logger.info("used parameters: " + str(params))
+    log_all_models.write("accuracy\tsensitivity\tspecificity\twrong_predicted\n")
+    feature_importance(log_feature_imp, "iteration", feature_names[:-1])
 
     if svc_model:
-        logging.info('running ' + str(num) + ' iterations creating support vector classifiers\n')
+        logger.info("running " + str(num) + " iterations creating support vector classifiers\n")
     else:
-        logging.info('running ' + str(num) + ' iterations creating gradient boosting classifiers\n')
+        logger.info("running " + str(num) + " iterations creating gradient boosting classifiers\n")
 
     total_results = [0.0] * 6  # total values for accuracy, f1, tp, tn, fp, fn
     sample_set = dataset
 
     for n in range(num):
-        logging.info('current iteration: ' + str(n))
+        logger.info("current iteration: " + str(n))
         current_iteration = n
         sample_set = sample_set.sample(frac=1, random_state=2)
         test, train = train_test_split(sample_set, test_flag)
 
         if svc_model:
-            wrong, samples, total_results, prediction_dataset = create_model(test, train, 'svc', features, logging,
-                                                                             params, log_feature_imp, n, log_all_models,
-                                                                             prediction_dataset, current_iteration,
-                                                                             total_results, args.cv_runs, args.jobs)
+            wrong, samples, total_results, prediction_dataset = create_model(
+                test,
+                train,
+                "svc",
+                features,
+                params,
+                log_feature_imp,
+                n,
+                log_all_models,
+                prediction_dataset,
+                current_iteration,
+                total_results,
+                args.cv_runs,
+                args.jobs,
+            )
         else:
-            wrong, samples, total_results, prediction_dataset = create_model(test, train, 'gb', features, logging,
-                                                                             params, log_feature_imp, n, log_all_models,
-                                                                             prediction_dataset, current_iteration,
-                                                                             total_results, args.cv_runs, args.jobs)
+            wrong, samples, total_results, prediction_dataset = create_model(
+                test,
+                train,
+                "gb",
+                features,
+                params,
+                log_feature_imp,
+                n,
+                log_all_models,
+                prediction_dataset,
+                current_iteration,
+                total_results,
+                args.cv_runs,
+                args.jobs,
+            )
         wrong_predictions.append(wrong)
         samples_tested.append(samples)
 
-    y = dataset['class'].values
-    x = dataset.iloc[:, 1:features+1].values
+    y = dataset["class"].values
+    x = dataset.iloc[:, 1 : features + 1].values
     if svc_model:
         final_clf, feature_imp = create_svc(x, y, params, args.cv_runs, args.jobs)
-        feature_importance(log_feature_imp, 'final', feature_imp)
+        feature_importance(log_feature_imp, "final", feature_imp)
     else:
         final_clf, feature_imp = create_gb(x, y, params, args.cv_runs, args.jobs)
-        feature_importance(log_feature_imp, 'final', feature_imp)
-    logging.info('Final model\nparameter selection: {}'.format(final_clf.best_params_))
+        feature_importance(log_feature_imp, "final", feature_imp)
+    logger.info("Final model\nparameter selection: {}".format(final_clf.best_params_))
 
     # save final model
-    with open(log_name[0] + '.pkl', 'wb') as f:
+    with open(log_name[0] + ".pkl", "wb") as f:
         pickle.dump(final_clf, f)
 
-    prediction_dataset.to_csv(log_name[0] + '_prediction.tsv', sep='\t', index=False)
+    prediction_dataset.to_csv(log_name[0] + "_prediction.tsv", sep="\t", index=False)
 
     outfile_wrong_predictions(wrong_predictions, samples_tested, output_file)
 
     if num > 0:
-        logging.info('mean accuracy: ' + str(total_results[0] / num))
-        logging.info('mean F1 score: ' + str(total_results[1] / num))
-        logging.info('mean tp: ' + str(int(round(total_results[2] / num))) + ', tn: ' +
-                     str(int(round(total_results[3] / num))) + ', fp: ' + str(int(round(total_results[4] / num))) +
-                     ', fn: ' + str(int(round(total_results[5] / num))) + '\n')
+        logger.info("mean accuracy: " + str(total_results[0] / num))
+        logger.info("mean F1 score: " + str(total_results[1] / num))
+        logger.info(
+            "mean tp: "
+            + str(int(round(total_results[2] / num)))
+            + ", tn: "
+            + str(int(round(total_results[3] / num)))
+            + ", fp: "
+            + str(int(round(total_results[4] / num)))
+            + ", fn: "
+            + str(int(round(total_results[5] / num)))
+            + "\n"
+        )
 
     end_time = time()
-    logging.info('time needed for model creation and prediction: ' + str(end_time - start_time))
+    logger.info("time needed for model creation and prediction: " + str(end_time - start_time))
 
     output_file.close()
     log_all_models.close()
+    return
