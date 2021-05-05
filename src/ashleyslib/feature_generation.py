@@ -1,4 +1,5 @@
-import pysam
+import glob
+import fnmatch
 from multiprocessing import Pool
 from collections import Counter
 import statistics
@@ -6,43 +7,108 @@ import os
 import re
 import logging
 
+import pysam
 
+logger = logging.getLogger(__name__)
+
+# fmt: off
 def add_features_parser(subparsers):
-    parser = subparsers.add_parser('features', help='create features for bam files')
-    parser.add_argument('--file', '-f', required=True,
-                        help='the name of the bam file to analyze or a directory where all bam files are processed')
-    parser.add_argument('--window_size', '-w', help='window size for feature generation', type=int, required=True,
-                        nargs='+')
-    parser.add_argument('--output_file', '-o', help='name of output file, should be .tsv', required=True)
-    parser.add_argument('--bam_extension', '-e', help='specify extension of files used for, default .bam',
-                        default='.bam')
-    parser.add_argument('--mapping_quality', '-mq', help='threshold for minimal mapping quality required, default:10',
-                        default=10, type=int)
-    parser.add_argument('--recursive_collect', dest='recursive', action='store_true', default=False,
-                        help='collecting bam files from entire folder hierarchy, default: only collecting bam files '
-                             'from current folder')
-    parser.add_argument('--chromosomes', '-c', help='regex expression specifying chromosomes to use for feature '
-                                                    'generation, default: chromosomes 1-22, X')
-    parser.add_argument('--statistics', dest='statistics', action='store_true', default=False,
-                        help='generate statistical values for window features, increases feature set')
+    parser = subparsers.add_parser("features", help="Compute features for (indexed) Strand-seq BAM files")
+    parser.add_argument(
+        "--file",
+        "-f",
+        required=True,
+        help="the name of the bam file to analyze or a directory where all bam files are processed",
+    )
+    parser.add_argument(
+        "--window_size",
+        "-w",
+        type=int,
+        nargs="+",
+        required=True,
+        help="window size for feature generation"
+    )
+    parser.add_argument(
+        "--output_file",
+        "-o",
+        required=True,
+        help="name of output file, should be .tsv"
+    )
+    parser.add_argument(
+        "--bam_extension",
+        "-e",
+        help="Specify extension of files used for feature computation. Default: '.bam'",
+        dest='bam_extension',
+        default=".bam"
+    )
+    parser.add_argument(
+        "--mapping_quality",
+        "-mq",
+        help="threshold for minimal mapping quality required. Default: 10",
+        default=10,
+        type=int,
+    )
+    parser.add_argument(
+        "--recursive_collect",
+        dest="recursive",
+        action="store_true",
+        default=False,
+        help="Assume. Default: only collecting bam files "
+        "from current folder",
+    )
+    parser.add_argument(
+        "--chromosomes",
+        "-c",
+        default="^(chr)?[0-9X]+$",
+        help="regex expression specifying chromosomes to use for feature generation. Default: chromosomes 1-22, X",
+    )
+    parser.add_argument(
+        "--statistics",
+        dest="statistics",
+        action="store_true",
+        default=False,
+        help="generate statistical values for window features, increases feature set",
+    )
 
     parser.set_defaults(execute=run_feature_generation)
 
     return subparsers
+# fmt: on
 
 
 def get_header(windows_list, use_statistics):
     feature_names = []
-    regular_features = ['W10', 'W20', 'W30', 'W40', 'W50', 'W60', 'W70', 'W80', 'W90', 'W100', 'total']
+    regular_features = [
+        "W10",
+        "W20",
+        "W30",
+        "W40",
+        "W50",
+        "W60",
+        "W70",
+        "W80",
+        "W90",
+        "W100",
+        "total",
+    ]
     if use_statistics:
-        statistics_features = ['stdev', 'mean', 'n_stdev', 'n_mean']
+        statistics_features = ["stdev", "mean", "n_stdev", "n_mean"]
         regular_features = regular_features + statistics_features
     mb = 1000000
     for w in windows_list:
         for f in regular_features:
-            feature_names.append(f + '_' + str(round(w/mb, 2)) + 'mb')
+            feature_names.append(f + "_" + str(round(w / mb, 2)) + "mb")
 
-    constant_features = ['p_unmap', 'p_map', 'p_supp', 'p_dup', 'p_mq', 'p_read2', 'p_good', 'sample_name']
+    constant_features = [
+        "p_unmap",
+        "p_map",
+        "p_supp",
+        "p_dup",
+        "p_mq",
+        "p_read2",
+        "p_good",
+        "sample_name",
+    ]
     feature_names = feature_names + constant_features
     return feature_names
 
@@ -50,7 +116,7 @@ def get_header(windows_list, use_statistics):
 def get_statistics(f_list):
     feature_list = []
     if len(f_list) < 2:
-        feature_list = feature_list + ['0', '0', '0', '0']
+        feature_list = feature_list + ["0", "0", "0", "0"]
         return feature_list
 
     feature_list.append(str(statistics.stdev(f_list)))
@@ -62,6 +128,9 @@ def get_statistics(f_list):
 
 
 def get_wc_composition(total_window_collection_wc, total_window_collection, window_count):
+    """
+    TODO: rewrite this (@PE)
+    """
     # create 10 features for 10% steps of w-percentage in windows
     feature_list = []
     window_dict = dict(total_window_collection)
@@ -78,17 +147,19 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
         # calculate wc composition of whole sample dependent on percentage of w strands in windows
         if total_window_collection_wc[i] <= 1:
             continue
-        w_percentage = (total_window_collection_wc[i+'W'] - 1)/(total_window_collection_wc[i] - 1)
+        w_percentage = (total_window_collection_wc[i + "W"] - 1) / (
+            total_window_collection_wc[i] - 1
+        )
         w_percentage_list.append(str(w_percentage))
         for j in cuts:
-            if j <= w_percentage < j+0.1:
-                c = 'W' + str(int((j+0.1)*100))
-                wc_collection.update({c: 1})
+            if j <= w_percentage < j + 0.1:
+                c = "W" + str(int((j + 0.1) * 100))
+                wc_collection[c] += 1
                 total += 1
                 current_window = j
         if w_percentage >= 1:
-            c = 'W' + str(int(100))
-            wc_collection.update({c: 1})
+            c = "W" + str(int(100))
+            wc_collection[c] += 1
             total += 1
         if not last_window == -1:
             wc_difference.append(last_window - current_window)
@@ -97,29 +168,31 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
         values.append(total_window_collection[i])
 
     if total == 0:
-        zero_list = ['0.0'] * 10
+        zero_list = ["0.0"] * 10
         feature_list = feature_list + zero_list
 
     else:
         for i in range(0, 100, 10):
-            c = 'W' + str(i+10)
+            c = "W" + str(i + 10)
             feature_list.append(str(wc_collection[c] / total))
 
-    feature_list.append(str(total/window_count))
+    feature_list.append(str(total / window_count))
 
     return values, wc_difference, w_percentage_list, feature_list
 
 
 def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
-
-    count_collection = Counter([])
+    """
+    TODO: rewrite this (@PE)
+    """
+    count_collection = Counter()
     with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
         chromosomes = dict(zip(bamfile.references, bamfile.lengths))
         length = chromosomes.get(chrom)
         step_size = int(window_size / 2)
 
-        window_collection = Counter([])
-        window_collection_wc = Counter([])
+        window_collection = Counter()
+        window_collection_wc = Counter()
         neighbor_difference = []
         window_count = 0
 
@@ -127,63 +200,86 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
         for i in range(0, length, step_size):
             window_count += 1
             s = str(chrom) + str(i)
-            window_collection.update({s: 1})
-            window_collection_wc.update({s: 1})
-            window_collection_wc.update({s+'W': 1})
-            window_collection_wc.update({s+'C': 1})
-            for read in bamfile.fetch(chrom, i, i+window_size):
-                window_collection.update({s: 1})
+            window_collection[s] += 1
+            window_collection_wc[s] += 1
+            window_collection_wc[s + "W"] += 1
+            window_collection_wc[s + "C"] += 1
+            for read in bamfile.fetch(chrom, i, i + window_size):
+                window_collection[s] += 1
                 if read.is_unmapped:
-                    if read.reference_start > i+step_size or i == 0:
-                        count_collection.update({'unmapped': 1})
+                    if read.reference_start > i + step_size or i == 0:
+                        count_collection["unmapped"] += 1
                     continue
                 # count all mapped reads
                 if read.reference_start > i + step_size or i == 0:
-                    count_collection.update({'mapped': 1})
+                    count_collection["mapped"] += 1
                 if read.is_supplementary or read.is_secondary or read.is_qcfail:
                     if read.reference_start > i + step_size or i == 0:
-                        count_collection.update({'supplementary': 1})
-                        window_collection_wc.update({s+'_supp': 1})
+                        count_collection["supplementary"] += 1
+                        window_collection_wc[s + "_supp"] += 1
                     continue
                 if read.is_duplicate:
                     if read.reference_start > i + step_size or i == 0:
-                        count_collection.update({'duplicate': 1})
+                        count_collection["duplicate"] += 1
                     continue
                 if read.mapping_quality < mapq_threshold:
                     if read.reference_start > i + step_size or i == 0:
-                        count_collection.update({'mapping_quality': 1})
+                        count_collection["mapping_quality"] += 1
                     continue
                 if read.is_read2:
                     if read.reference_start > i + step_size or i == 0:
-                        count_collection.update({'read2': 1})
+                        count_collection["read2"] += 1
                     continue
                 if read.reference_start > i + step_size or i == 0:
-                    count_collection.update({'good': 1})
+                    count_collection["good"] += 1
 
-                window_collection_wc.update({s: 1})
+                window_collection_wc[s] += 1
                 if read.is_reverse:
-                    window_collection_wc.update({s+'W': 1})
+                    window_collection_wc[s + "W"] += 1
                 else:
-                    window_collection_wc.update({s+'C': 1})
+                    window_collection_wc[s + "C"] += 1
 
             if not i == 0:
-                last_window = str(chrom) + str(i-step_size)
+                last_window = str(chrom) + str(i - step_size)
                 diff = window_collection[last_window] - window_collection[s]
                 neighbor_difference.append(diff)
 
-    return chrom, count_collection, window_collection, window_collection_wc, neighbor_difference, window_count
+    return (
+        chrom,
+        count_collection,
+        window_collection,
+        window_collection_wc,
+        neighbor_difference,
+        window_count,
+    )
 
 
-def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chromosomes, logging, use_statistics):
+def get_bam_characteristics(
+    jobs, window_list, bamfile_name, mapq_threshold, match_chromosomes, use_statistics
+):
+    """
+    TODO: rewrite this (@PE)
+    """
     # read a BAM file and return different features for windows of the chromosomes
 
     with pysam.AlignmentFile(bamfile_name, "rb") as bamfile:
         references = bamfile.references
-        chrom_re = re.compile(chromosomes)
-        chromosome_list = [x for x in references if chrom_re.match(x)]
-        logging.info('Chromosomes used for feature generation: ' + str(chromosome_list))
+        chromosome_list = [x for x in references if match_chromosomes.match(x)]
+        logger.debug(
+            "Chromosomes used for feature generation: {}".format(
+                ", ".join(sorted(chromosome_list))
+            )
+        )
 
-    filtered_list = ['unmapped', 'mapped', 'supplementary', 'duplicate', 'mapping_quality', 'read2', 'good']
+    filtered_list = [
+        "unmapped",
+        "mapped",
+        "supplementary",
+        "duplicate",
+        "mapping_quality",
+        "read2",
+        "good",
+    ]
     feature_list = []
 
     # collections with different counts over all chromosomes
@@ -207,9 +303,9 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chr
             total_neighbor_difference += r[4]
             window_count += r[5]
 
-        values, wc_difference, w_percentage_list, next_features = get_wc_composition(total_window_collection_wc,
-                                                                                     total_window_collection,
-                                                                                     window_count)
+        values, wc_difference, w_percentage_list, next_features = get_wc_composition(
+            total_window_collection_wc, total_window_collection, window_count
+        )
         feature_list = feature_list + next_features
         if use_statistics:
             statistics_features = get_statistics(values)
@@ -217,91 +313,116 @@ def get_bam_characteristics(jobs, window_list, bamfile_name, mapq_threshold, chr
             feature_list = feature_list + statistics_features + neighbor_features
 
     # relative filtering feature values
-    total_reads = total_count_collection['mapped'] + total_count_collection['unmapped']
+    total_reads = total_count_collection["mapped"] + total_count_collection["unmapped"]
     for i in filtered_list:
-        feature_list.append(str(total_count_collection[i]/total_reads))
+        feature_list.append(str(total_count_collection[i] / total_reads))
 
     # add sample name
-    file_name = bamfile_name.rsplit('/', 1)[1]
-    f_list = file_name.rsplit('_')
-    if len(f_list) == 4:
-        # for filenames like HG00268_hgsvc_ilnxs-80pe_01PE20433, the middle is omitted to get HG00268x01PE20433
-        f1, f2, f3, f4 = f_list
-        if f1.endswith('A') or f1.endswith('B'):
-            f1 = f1[:-1]
-        cell_name = f4.split('.', 1)[0]
-        if cell_name.startswith('A') or cell_name.startswith('B'):
-            cell_name = cell_name[1:]
-        if cell_name.startswith('x'):
-            feature_list.append(f1 + cell_name)
-        else:
-            feature_list.append(f1 + 'x' + cell_name)
-    else:
-        feature_list.append(file_name)
+    file_name = os.path.basename(bamfile_name)
+    feature_list.append(file_name)
 
     return w_percentage_list, feature_list
 
 
-def collect_features(jobs, windowsize_list, bamfile, mapq_threshold, output, distribution_file, chromosomes, log,
-                     use_statistics):
-    w_list, feature_list = get_bam_characteristics(jobs, windowsize_list, bamfile, mapq_threshold, chromosomes, log,
-                                                   use_statistics)
+def collect_features(
+    jobs,
+    windowsize_list,
+    bamfile,
+    mapq_threshold,
+    output,
+    distribution_file,
+    match_chromosomes,
+    use_statistics,
+):
+    w_list, feature_list = get_bam_characteristics(
+        jobs, windowsize_list, bamfile, mapq_threshold, match_chromosomes, use_statistics
+    )
     distribution_file.write("\t".join(w_list))
-    distribution_file.write('\n')
+    distribution_file.write("\n")
     output.write("\t".join(feature_list))
-    output.write('\n')
+    output.write("\n")
+
+
+def collect_input_bam_files(input_path, recursive_collect, file_ext):
+    """
+    input_path: single file path or folder
+    """
+    input_files = []
+    if os.path.isfile(input_path):
+        logger.debug("Single input file detected: {}".format(input_path))
+        input_files = [input_path]
+    elif os.path.isdir(input_path):
+        if recursive_collect:
+            logger.debug("Collect input files via recursive collect")
+            match_pattern = "*" + file_ext
+            for root, _, files in os.walk(input_path, followlinks=False):
+                matched_files = fnmatch.filter(files, match_pattern)
+                input_files.extend([os.path.join(root, f) for f in matched_files])
+        else:
+            logger.debug("Collect input files via glob expand")
+            match_pattern = os.path.join(input_path, "*" + file_ext)
+            input_files = glob.glob(match_pattern)
+    else:
+        raise ValueError("Path is neither single input file nor folder: {}".format(input_path))
+
+    input_files = sorted([os.path.abspath(f) for f in input_files])
+
+    if not input_files:
+        raise ValueError(
+            "No input files selected with parameters: {} / [recursive:] {} / {}".format(
+                input_path, recursive_collect, file_ext
+            )
+        )
+
+    return input_files
 
 
 def run_feature_generation(args):
+    """ """
+    logger.info("Running feature generation module...")
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
     mapq_threshold = args.mapping_quality
 
-    path = args.file
     output_file = args.output_file
 
-    file_name, ending = output_file.rsplit('.', 1)
-    log_file = file_name + '.log'
-    if args.logging is not None:
-        log_file = args.logging
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',
-                        level=logging.INFO, handlers=[logging.FileHandler(log_file)])
-    logging.info('Generating features for window sizes ' + str(windowsize_list))
-
-    distribution_file = open(file_name + '_window_distribution.' + ending, 'w')
-    output = open(output_file, 'w')
+    file_name, ending = output_file.rsplit(".", 1)
+    distribution_file = open(file_name + "_window_distribution." + ending, "w")
+    output = open(output_file, "w")
     features = get_header(windowsize_list, args.statistics)
-    logging.info('list of all features to generate: ' + str(features))
-    output.write('\t'.join(features))
-    output.write('\n')
+    output.write("\t".join(features))
+    output.write("\n")
 
-    chromosomes = "^(chr)?[0-9X]+$"  # chr1-22, chrX
-    if args.chromosomes is not None:
-        chromosomes = args.chromosomes
+    match_chrom_expression = args.chromosomes.strip('"')
+    logger.debug(
+        "Using following expression to match chromosomes: {}".format(match_chrom_expression)
+    )
+    match_chromosomes = re.compile(match_chrom_expression)
 
-    if os.path.isfile(path):
-        collect_features(args.jobs, windowsize_list, path, mapq_threshold, output, distribution_file, chromosomes,
-                         logging, args.statistics)
+    logger.debug("Collecting input files...")
+    input_files = collect_input_bam_files(args.file, args.recursive, args.bam_extension.strip('"'))
+    num_input_files = len(input_files)
+    logger.info("Identified {} input BAM files".format(num_input_files))
+    logger.debug("Head of input file list:\n{}".format("\n".join(input_files[:3])))
 
-    else:
-        extension = args.bam_extension
-        if not args.recursive:
-            for name in os.listdir(path):
-                if not name.endswith(extension):
-                    continue
-                next_cell = os.path.join(path, name)
-                collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file,
-                                 chromosomes, logging, args.statistics)
-
-        else:
-            for root, subdirs, files in os.walk(path):
-                for name in files:
-                    if not name.endswith(extension):
-                        continue
-                    next_cell = os.path.join(root, name)
-                    collect_features(args.jobs, windowsize_list, next_cell, mapq_threshold, output, distribution_file,
-                                     chromosomes, logging, args.statistics)
+    for pos, input_file in enumerate(input_files, start=1):
+        logger.info(
+            "Processing input file ({}/{}): {}".format(
+                pos, num_input_files, os.path.basename(input_file)
+            )
+        )
+        collect_features(
+            args.jobs,
+            windowsize_list,
+            input_file,
+            mapq_threshold,
+            output,
+            distribution_file,
+            match_chromosomes,
+            args.statistics,
+        )
 
     output.close()
     distribution_file.close()
+    logger.info("Output files closed")
     return
