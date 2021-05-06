@@ -136,17 +136,21 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
     window_dict = dict(total_window_collection)
     wc_collection = Counter(W10=0, W20=0, W30=0, W40=0, W50=0, W60=0, W70=0, W80=0, W90=0, W100=0)
     values = []
+    # total: counts non-empty windows
     total = 0
     cuts = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    wc_difference = []
+    wc_difference = []  # this is no longer used outside of this function
     last_window = -1
     current_window = -1
+    # w_percentage_list is a data structure only used for
+    # plotting (see plotting module, "--w_percentage" parameter)
     w_percentage_list = []
 
     for i in sorted(window_dict.keys()):
         # calculate wc composition of whole sample dependent on percentage of w strands in windows
         if total_window_collection_wc[i] <= 1:
             continue
+        # not entirely clear: -1 ?
         w_percentage = (total_window_collection_wc[i + "W"] - 1) / (
             total_window_collection_wc[i] - 1
         )
@@ -161,12 +165,21 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
             c = "W" + str(int(100))
             wc_collection[c] += 1
             total += 1
+        # compute difference in WC-ratio binning
+        # for subsequent windows
+        # Currently discarded after this function
+        # NB: not the same as the difference in total
+        # read count computed in "get_read_features"
         if not last_window == -1:
             wc_difference.append(last_window - current_window)
         last_window = current_window
 
         values.append(total_window_collection[i])
 
+    # next if-else:
+    # normalize counts in wc_collection
+    # (share of windows with 10% W, 20 % W etc.)
+    # by total number of non-empty windows
     if total == 0:
         zero_list = ["0.0"] * 10
         feature_list = feature_list + zero_list
@@ -206,6 +219,10 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
             window_collection_wc[s + "C"] += 1
             for read in bamfile.fetch(chrom, i, i + window_size):
                 window_collection[s] += 1
+
+                # NB: all of the following if's count constant feature
+                # values per chromosome, i.e. counting reads twice
+                # is avoided by shifting: i+step_size
                 if read.is_unmapped:
                     if read.reference_start > i + step_size or i == 0:
                         count_collection["unmapped"] += 1
@@ -216,6 +233,7 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
                 if read.is_supplementary or read.is_secondary or read.is_qcfail:
                     if read.reference_start > i + step_size or i == 0:
                         count_collection["supplementary"] += 1
+                        # TODO: most likely not used anymore
                         window_collection_wc[s + "_supp"] += 1
                     continue
                 if read.is_duplicate:
@@ -233,6 +251,8 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
                 if read.reference_start > i + step_size or i == 0:
                     count_collection["good"] += 1
 
+                # NB: i is not shifted by step_size, i.e. we count
+                # reads that overlap two windows twice
                 window_collection_wc[s] += 1
                 if read.is_reverse:
                     window_collection_wc[s + "W"] += 1
@@ -241,6 +261,8 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
 
             if not i == 0:
                 last_window = str(chrom) + str(i - step_size)
+                # difference in total number of reads (any quality) between
+                # subsequent windows
                 diff = window_collection[last_window] - window_collection[s]
                 neighbor_difference.append(diff)
 
@@ -303,6 +325,7 @@ def get_bam_characteristics(
             total_neighbor_difference += r[4]
             window_count += r[5]
 
+        # values: total read count per window, sorted by window id
         values, wc_difference, w_percentage_list, next_features = get_wc_composition(
             total_window_collection_wc, total_window_collection, window_count
         )
@@ -337,8 +360,10 @@ def collect_features(
     w_list, feature_list = get_bam_characteristics(
         jobs, windowsize_list, bamfile, mapq_threshold, match_chromosomes, use_statistics
     )
+    # distribution file: only used for plotting
     distribution_file.write("\t".join(w_list))
     distribution_file.write("\n")
+    # main output file: feature values per library
     output.write("\t".join(feature_list))
     output.write("\n")
 
