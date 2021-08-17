@@ -29,10 +29,16 @@ def add_features_parser(subparsers):
         help="window size for feature generation"
     )
     parser.add_argument(
-        "--output_file",
+        "--output_features",
         "-o",
         required=True,
-        help="name of output file, should be .tsv"
+        help="name of output file for feature table, should be .tsv"
+    )
+    parser.add_argument(
+        "--output_plotting",
+        "-p",
+        default=None,
+        help="name of output file for Watson percentage lists, further used for plotting"
     )
     parser.add_argument(
         "--bam_extension",
@@ -125,6 +131,20 @@ def get_statistics(f_list):
     feature_list.append(str(statistics.median(f_list)))
 
     return feature_list
+
+
+def get_w_percentage(total_window_collection_wc, total_window_collection):
+    """
+    function needed to plot distribution of Watson percentage for all windows
+    currently used by plotting.py with --w_percentage
+    currently only saved in output file for the last (smallest) window size
+    note: new output file should also contain sample names (like the output feature table)
+
+    :param total_window_collection_wc: containing number of Watson and Crick reads for each window
+    :param total_window_collection: containing total number of reads for each window
+    :return: list containing Watson read percentage for each window
+    """
+    raise NotImplementedError
 
 
 def get_wc_composition(total_window_collection_wc, total_window_collection, window_count):
@@ -404,12 +424,15 @@ def collect_input_bam_files(input_path, recursive_collect, file_ext):
 
 def run_feature_generation(args):
     """ """
+    if args.output_plotting:
+        raise NotImplementedError
+
     logger.info("Running feature generation module...")
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
     mapq_threshold = args.mapping_quality
 
-    output_file = args.output_file
+    output_file = args.output_features
 
     file_name, ending = output_file.rsplit(".", 1)
     distribution_file = open(file_name + "_window_distribution." + ending, "w")
