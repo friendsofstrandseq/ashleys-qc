@@ -9,7 +9,7 @@ from ashleyslib import __version__
 from ashleyslib import LOG_MESSAGE_FORMAT as logging_format
 
 from ashleyslib.train_classification_model import add_training_parser
-from ashleyslib.feature_generation import add_features_parser
+from ashleyslib.features import add_features_parser
 from ashleyslib.prediction import add_prediction_parser
 from ashleyslib.plotting import add_plotting_parser
 
