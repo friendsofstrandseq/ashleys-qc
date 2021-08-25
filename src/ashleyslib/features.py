@@ -82,6 +82,15 @@ def add_features_parser(subparsers):
              "feature computation. Default: (chr)1-22, X",
     )
     io_group.add_argument(
+        "--discard-read-positions",
+        "-d",
+        action="store_true",
+        default=False,
+        dest="discard_read_positions",
+        help="Do not save/store alignment positions of (good) reads. "
+             "Default: False"
+    )
+    io_group.add_argument(
         "--output-features",
         "-o",
         type=lambda p: pl.Path(p).resolve().absolute(),
@@ -364,7 +373,14 @@ def aggregate_window_features(feature_set):
 
 
 def compute_features(
-    input_bams, chromosomes, window_sizes, min_mapq, feature_types, jobs, out_hdf
+    input_bams,
+    chromosomes,
+    window_sizes,
+    min_mapq,
+    feature_types,
+    discard_positions,
+    jobs,
+    out_hdf,
 ):
     """
     Parameter feature_types not used at the moment
@@ -381,10 +397,17 @@ def compute_features(
             ),
         )
         for results in resiter:
-            key_crick_reads = f"reads/{results['library_name']}/{results['chromosome']}/crick"
-            key_watson_reads = f"reads/{results['library_name']}/{results['chromosome']}/watson"
-            results["crick_reads"].to_hdf(out_hdf, key_crick_reads, mode="a")
-            results["watson_reads"].to_hdf(out_hdf, key_watson_reads, mode="a")
+            if not discard_positions:
+                key_crick_reads = f"reads/{results['library_name']}/{results['chromosome']}/crick"
+                key_watson_reads = (
+                    f"reads/{results['library_name']}/{results['chromosome']}/watson"
+                )
+                results["crick_reads"].to_hdf(
+                    out_hdf, key_crick_reads, mode="a", complevel=9, complib="blosc"
+                )
+                results["watson_reads"].to_hdf(
+                    out_hdf, key_watson_reads, mode="a", complevel=9, complib="blosc"
+                )
             collect_mapping_stats.append(results["mapping_statistics"])
             collect_window_stats.append(results["window_statistics"])
 
@@ -406,16 +429,18 @@ def compute_features(
     )
     key_mapping_stats = "features/mapping_statistics"
     collect_mapping_stats.sort_index(inplace=True)
-    collect_mapping_stats.to_hdf(out_hdf, key_mapping_stats, mode="a")
-
+    collect_mapping_stats.to_hdf(
+        out_hdf, key_mapping_stats, mode="a", complevel=9, complib="blosc"
+    )
+    logger.debug("Stored mapping statistics features...")
     collect_window_stats = pd.concat(
         [collect_window_stats, wg_window_stats], axis=0, ignore_index=False
     )
     key_window_stats = "features/window_statistics"
     collect_window_stats.sort_index(inplace=True)
-    collect_window_stats.to_hdf(out_hdf, key_window_stats, mode="a")
-
-    return
+    collect_window_stats.to_hdf(out_hdf, key_window_stats, mode="a", complevel=9, complib="blosc")
+    logger.debug("Stored window statistics features...")
+    return collect_mapping_stats, collect_window_stats
 
 
 def collect_input_bam_files(input_paths, recursive, bam_ext):
@@ -507,7 +532,7 @@ def collect_chromosomes(bam_files, chrom_match_expr):
 
 def create_parameter_combination(input_bams, chromosomes, window_sizes, min_mapq, feature_types):
     """
-    feature_types: which types of features to compute
+    feature_types: types of features to compute - implemented for later use, not used at the moment
     """
     total_bam = len(input_bams)
     total_chroms = len(chromosomes)
@@ -516,11 +541,33 @@ def create_parameter_combination(input_bams, chromosomes, window_sizes, min_mapq
         for m_chrom, chromosome in enumerate(chromosomes, start=1):
 
             param_set = (bam_file, chromosome, window_sizes, min_mapq, feature_types)
-            logger.debug(
-                f"Creating parameter set BAM {n_bam}/{total_bam} "
-                f"and CHROM {m_chrom}/{total_chroms}"
-            )
+            # logger.debug(
+            #     f"Creating parameter set BAM {n_bam}/{total_bam} "
+            #     f"and CHROM {m_chrom}/{total_chroms}"
+            # )
             yield param_set
+    return
+
+
+def dump_output_table(mapping_stats, window_stats, out_path):
+
+    wg_subset = mapping_stats.xs(["wg", scales.RELATIVE.name], level=["region", "scale"]).copy()
+    wg_subset.drop(ftms.TOTAL.name, axis=1, inplace=True)
+    feat_per_library = [wg_subset]
+
+    for w in window_stats.index.unique(level="window_size"):
+        wg_subset = window_stats.xs(
+            ["wg", w, scales.RELATIVE.name], level=["region", "window_size", "scale"]
+        ).copy()
+        wg_subset.drop(ftws.TOTAL.name, axis=1, inplace=True)
+        wg_subset.columns = [f"WS{w}_{c}" for c in wg_subset.columns]
+        feat_per_library.append(wg_subset)
+
+    feat_per_library = pd.concat(feat_per_library, axis=1, ignore_index=False)
+    logger.debug(f"Dataset dimension dumped to TSV: {feat_per_library.shape}")
+    feat_per_library.sort_index(inplace=True)
+
+    feat_per_library.to_csv(out_path, sep="\t", header=True, index=True, index_label="library")
     return
 
 
@@ -545,11 +592,23 @@ def run_feature_generation(args):
     process_chroms = collect_chromosomes(input_bams, args.chromosomes)
     logger.info(f"Selected {len(process_chroms)} chromosomes to process")
     total_combinations = len(input_bams) * len(process_chroms)
-    logger.info(f"Total number of parameters combinations to process: {total_combinations}")
+    logger.info(f"Total number of parameter combinations to process: {total_combinations}")
+
     logger.info(f"Start feature computation using {args.jobs} CPU cores")
-    _ = compute_features(
-        input_bams, process_chroms, args.window_size, mapq_threshold, tuple(), args.jobs, out_hdf
+    mapping_stats, window_stats = compute_features(
+        input_bams,
+        process_chroms,
+        args.window_size,
+        mapq_threshold,
+        tuple(),  # this is a placeholder for "feature_types"
+        args.discard_read_positions,
+        args.jobs,
+        out_hdf,
     )
-    logger.info("Feature computation completed - done!")
+    logger.info("Feature computation completed, dumping TSV output table")
+
+    _ = dump_output_table(mapping_stats, window_stats, out_tsv)
+
+    logger.info("Done - exiting...")
 
     return
