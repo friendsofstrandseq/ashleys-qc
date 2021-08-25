@@ -95,7 +95,8 @@ def get_header(windows_list, use_statistics):
         "W80",
         "W90",
         "W100",
-        "total",
+        "total_nonempty_windows",
+        "total_nonempty_empty_windows",
     ]
     if use_statistics:
         statistics_features = ["stdev", "mean", "n_stdev", "n_mean"]
@@ -207,9 +208,10 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
     else:
         for i in range(0, 100, 10):
             c = "W" + str(i + 10)
-            feature_list.append(str(wc_collection[c] / total))
+            feature_list.append(str(wc_collection[c]))
 
-    feature_list.append(str(total / window_count))
+    feature_list.append(str(total))
+    feature_list.append(str(window_count))
 
     return values, wc_difference, w_percentage_list, feature_list
 
@@ -428,6 +430,7 @@ def run_feature_generation(args):
         raise NotImplementedError
 
     logger.info("Running feature generation module...")
+    logger.info("calculating absolute values for Watson features, additional value for number of empty and non-empty windows")
     windowsize_list = args.window_size
     windowsize_list.sort(reverse=True)
     mapq_threshold = args.mapping_quality
