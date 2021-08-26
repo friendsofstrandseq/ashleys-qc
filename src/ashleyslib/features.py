@@ -230,7 +230,9 @@ def collect_window_statistics_per_chromosome(
                 windows[-1] >= chrom_size
             ), f"{chromosome} invalid window end: {windows[-2:]} < {chrom_size} [{adjusted_chrom_size} / {w} / {step}]"
 
-            num_windows += windows.size
+            # windows.size is length of list, but we need
+            # number of bins here, i.e. -1
+            num_windows += windows.size - 1
             crick_counts, _ = np.histogram(crick_reads, windows)
             watson_counts, _ = np.histogram(watson_reads, windows)
             total_counts = crick_counts + watson_counts
