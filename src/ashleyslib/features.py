@@ -208,13 +208,28 @@ def collect_window_statistics_per_chromosome(
         # recorded for data normalization
         num_windows = 0
         num_nonzero_windows = 0
-        # adjust chromosome size to include last incomplete
-        # window; for larger window sizes such as 5 Mbp, this
-        # can be a considerable fraction of the chromosome
-        adjusted_chrom_size = chrom_size // w * w + w
+
         watson_decile_bins_abs = np.zeros(len(decile_labels), dtype=np.int32)
-        for s in [0, w // 2]:
-            windows = np.arange(s, adjusted_chrom_size + 1, w)
+        for step in [0, w // 2]:
+            # adjust chromosome size to include last incomplete
+            # window; for larger window sizes such as 5 Mbp, this
+            # can be a considerable fraction of the chromosome
+            adjusted_chrom_size = (chrom_size + step) // w * w + w
+
+            # +1 here to have last window created
+            windows = np.arange(step, adjusted_chrom_size + 1, w)
+
+            # check that start of last window is always smaller than
+            # end of current chromosome
+            assert (
+                windows[-2] < chrom_size
+            ), f"{chromosome} invalid window start: {windows[-2:]} >= {chrom_size} [{adjusted_chrom_size} / {w} / {step}]"
+            # check that end of last window is always overlapping
+            # end of current chromosome
+            assert (
+                windows[-1] >= chrom_size
+            ), f"{chromosome} invalid window end: {windows[-2:]} < {chrom_size} [{adjusted_chrom_size} / {w} / {step}]"
+
             num_windows += windows.size
             crick_counts, _ = np.histogram(crick_reads, windows)
             watson_counts, _ = np.histogram(watson_reads, windows)
@@ -313,7 +328,7 @@ def compute_features_per_chromosome(parameter_set):
     return results
 
 
-def aggregate_mapping_features(feature_set):
+def aggregate_mapping_features(feature_set, num_chromosomes):
     """ """
     libraries = feature_set.index.unique(level="library")
 
@@ -321,6 +336,7 @@ def aggregate_mapping_features(feature_set):
 
     for lib in libraries:
         counts = feature_set.xs([lib, scales.ABSOLUTE.name], level=["library", "scale"])
+        assert counts.shape[0] == num_chromosomes
         counts = counts.sum(axis=0)
         norm_subset = counts / counts[ftms.TOTAL.name]
         df = pd.DataFrame(
@@ -339,7 +355,7 @@ def aggregate_mapping_features(feature_set):
     return wg_aggregates
 
 
-def aggregate_window_features(feature_set):
+def aggregate_window_features(feature_set, num_chromosomes):
     """ """
     libraries = feature_set.index.unique(level="library")
     window_sizes = feature_set.index.unique(level="window_size")
@@ -351,6 +367,7 @@ def aggregate_window_features(feature_set):
             counts = feature_set.xs(
                 [lib, window, scales.ABSOLUTE.name], level=["library", "window_size", "scale"]
             )
+            assert counts.shape[0] == num_chromosomes
             counts = counts.sum(axis=0)
             norm_subset = counts / counts[ftws.NZERO.name]
             norm_subset[[ftws.NZERO.name, ftws.TOTAL.name]] = (
@@ -418,10 +435,10 @@ def compute_features(
     logger.debug(f"Window statistics result dimension: {collect_window_stats.shape}")
 
     logger.debug("Aggregating per-chromosome features...")
-    wg_mapping_stats = aggregate_mapping_features(collect_mapping_stats)
+    wg_mapping_stats = aggregate_mapping_features(collect_mapping_stats, len(chromosomes))
     logger.debug("Whole-genome mapping statistics aggregated")
 
-    wg_window_stats = aggregate_window_features(collect_window_stats)
+    wg_window_stats = aggregate_window_features(collect_window_stats, len(chromosomes))
     logger.debug("Whole-genome window statistics aggregated")
 
     collect_mapping_stats = pd.concat(
