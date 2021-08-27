@@ -2,6 +2,7 @@ import glob
 import fnmatch
 from multiprocessing import Pool
 from collections import Counter
+from collections import defaultdict
 import statistics
 import os
 import re
@@ -10,6 +11,8 @@ import logging
 import pysam
 
 logger = logging.getLogger(__name__)
+CHROMOSOMES = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5', 'chr6', 'chr7', 'chr8', 'chr9', 'chr10', 'chr11', 'chr12',
+               'chr13', 'chr14', 'chr15', 'chr16', 'chr17', 'chr18', 'chr19', 'chr20', 'chr21', 'chr22', 'chrX', 'chrY']
 
 # fmt: off
 def add_features_parser(subparsers):
@@ -82,6 +85,30 @@ def add_features_parser(subparsers):
 # fmt: on
 
 
+def get_chrom_header(window_list, match_chromosomes):
+    chromosome_list = [x for x in CHROMOSOMES if match_chromosomes.match(x)]
+    feature_names = []
+    wc_features = [
+        "W10",
+        "W20",
+        "W30",
+        "W40",
+        "W50",
+        "W60",
+        "W70",
+        "W80",
+        "W90",
+        "W100",
+    ]
+    mb = 1000000
+    for w in window_list:
+        for c in chromosome_list:
+            chrom_features = [c + '_' + wc + '_' + str(round(w / mb, 2)) + "mb" for wc in wc_features]
+            feature_names = feature_names + chrom_features
+
+    return feature_names
+
+
 def get_header(windows_list, use_statistics):
     feature_names = []
     regular_features = [
@@ -148,7 +175,7 @@ def get_w_percentage(total_window_collection_wc, total_window_collection):
     raise NotImplementedError
 
 
-def get_wc_composition(total_window_collection_wc, total_window_collection, window_count):
+def get_wc_composition(total_window_collection_wc, total_window_collection, window_count, chromosome_list):
     """
     TODO: rewrite this (@PE)
     """
@@ -166,8 +193,9 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
     # w_percentage_list is a data structure only used for
     # plotting (see plotting module, "--w_percentage" parameter)
     w_percentage_list = []
+    chromosome_wc = Counter()
 
-    for i in sorted(window_dict.keys()):
+    for i in window_dict.keys():
         # calculate wc composition of whole sample dependent on percentage of w strands in windows
         if total_window_collection_wc[i] <= 1:
             continue
@@ -175,16 +203,21 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
         w_percentage = (total_window_collection_wc[i + "W"] - 1) / (
             total_window_collection_wc[i] - 1
         )
+        current_chrom = i.split('_')[0]
         w_percentage_list.append(str(w_percentage))
         for j in cuts:
             if j <= w_percentage < j + 0.1:
                 c = "W" + str(int((j + 0.1) * 100))
                 wc_collection[c] += 1
+                chrom = current_chrom + c
+                chromosome_wc[chrom] += 1
                 total += 1
                 current_window = j
         if w_percentage >= 1:
             c = "W" + str(int(100))
             wc_collection[c] += 1
+            chrom = current_chrom + c
+            chromosome_wc[chrom] += 1
             total += 1
         # compute difference in WC-ratio binning
         # for subsequent windows
@@ -201,19 +234,27 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
     # normalize counts in wc_collection
     # (share of windows with 10% W, 20 % W etc.)
     # by total number of non-empty windows
+    chromosome_feature_list = []
     if total == 0:
         zero_list = ["0.0"] * 10
         feature_list = feature_list + zero_list
+        zero_list = ['0.0'] * 10 * len(chromosome_list) #23 chromosomes x 10 features
+        chromosome_feature_list = chromosome_feature_list + zero_list
 
     else:
         for i in range(0, 100, 10):
             c = "W" + str(i + 10)
             feature_list.append(str(wc_collection[c]))
+        for chrom in chromosome_list:
+            for i in range(0, 100, 10):
+                c = chrom + "W" + str(i + 10)
+                chromosome_feature_list.append(str(chromosome_wc[c]))
+
 
     feature_list.append(str(total))
     feature_list.append(str(window_count))
 
-    return values, wc_difference, w_percentage_list, feature_list
+    return values, wc_difference, w_percentage_list, feature_list, chromosome_feature_list
 
 
 def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
@@ -234,7 +275,7 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
         # count reads in each window of size stepsize
         for i in range(0, length, step_size):
             window_count += 1
-            s = str(chrom) + str(i)
+            s = str(chrom) + '_' + str(i)
             window_collection[s] += 1
             window_collection_wc[s] += 1
             window_collection_wc[s + "W"] += 1
@@ -325,6 +366,7 @@ def get_bam_characteristics(
         "good",
     ]
     feature_list = []
+    chromosome_feature_list = []
 
     # collections with different counts over all chromosomes
     for w_size in window_list:
@@ -348,10 +390,11 @@ def get_bam_characteristics(
             window_count += r[5]
 
         # values: total read count per window, sorted by window id
-        values, wc_difference, w_percentage_list, next_features = get_wc_composition(
-            total_window_collection_wc, total_window_collection, window_count
+        values, wc_difference, w_percentage_list, next_features, next_chromosomes= get_wc_composition(
+            total_window_collection_wc, total_window_collection, window_count, chromosome_list
         )
         feature_list = feature_list + next_features
+        chromosome_feature_list = chromosome_feature_list + next_chromosomes
         if use_statistics:
             statistics_features = get_statistics(values)
             neighbor_features = get_statistics(total_neighbor_difference)
@@ -366,7 +409,7 @@ def get_bam_characteristics(
     file_name = os.path.basename(bamfile_name)
     feature_list.append(file_name)
 
-    return w_percentage_list, feature_list
+    return w_percentage_list, feature_list, chromosome_list, chromosome_feature_list
 
 
 def collect_features(
@@ -378,8 +421,9 @@ def collect_features(
     distribution_file,
     match_chromosomes,
     use_statistics,
+    chrom_output
 ):
-    w_list, feature_list = get_bam_characteristics(
+    w_list, feature_list, chromosomes, chromosome_features = get_bam_characteristics(
         jobs, windowsize_list, bamfile, mapq_threshold, match_chromosomes, use_statistics
     )
     # distribution file: only used for plotting
@@ -388,6 +432,9 @@ def collect_features(
     # main output file: feature values per library
     output.write("\t".join(feature_list))
     output.write("\n")
+    # output file with features for each chromosome
+    chrom_output.write("\t".join(chromosome_features))
+    chrom_output.write("\n")
 
 
 def collect_input_bam_files(input_path, recursive_collect, file_ext):
@@ -445,10 +492,16 @@ def run_feature_generation(args):
     output.write("\n")
 
     match_chrom_expression = args.chromosomes.strip('"')
+
     logger.debug(
         "Using following expression to match chromosomes: {}".format(match_chrom_expression)
     )
     match_chromosomes = re.compile(match_chrom_expression)
+
+    chrom_output = open(file_name + '_chromosomes.tsv', "w")
+    chrom_features = get_chrom_header(windowsize_list, match_chromosomes)
+    chrom_output.write("\t".join(chrom_features))
+    chrom_output.write("\n")
 
     logger.debug("Collecting input files...")
     input_files = collect_input_bam_files(args.file, args.recursive, args.bam_extension.strip('"'))
@@ -471,9 +524,11 @@ def run_feature_generation(args):
             distribution_file,
             match_chromosomes,
             args.statistics,
+            chrom_output
         )
 
     output.close()
     distribution_file.close()
+    chrom_output.close()
     logger.info("Output files closed")
     return
