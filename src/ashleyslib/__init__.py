@@ -12,82 +12,46 @@ __email_contributor__ = "peter.ebert@iscb.org"
 LOG_MESSAGE_FORMAT = "%(asctime)s | %(funcName)s | %(levelname)s | %(message)s"
 
 
-class Scales(enum.Enum):
-    ABSOLUTE = 1
-    absolute = 1
-    RELATIVE = 2
-    relative = 2
-
+class AshleysEnum(enum.Enum):
     def __str__(self):
         return self.name
 
-
-class FeatureMappingStatistics(enum.Enum):
-    UNMAPPED = 1
-    MAPPED = 2
-    SUPPLEMENTARY = 3
-    DUPLICATE = 4
-    MAPQ = 5
-    READ2 = 6
-    GOOD = 7
-    TOTAL = 8
-
-    unmapped = 1
-    mapped = 2
-    supplementary = 3
-    duplicate = 4
-    mapq = 5
-    read2 = 6
-    good = 7
-    total = 8
-
-    def __str__(self):
+    def __name__(self):
         return self.name
 
 
-class FeatureWindowStatistics(enum.Enum):
-    W10 = 10
-    W20 = 20
-    W30 = 30
-    W40 = 40
-    W50 = 50
-    W60 = 60
-    W70 = 70
-    W80 = 80
-    W90 = 90
-    W100 = 100
+class FeatureTypes(AshleysEnum):
+    mapping_statistics = 1
+    mapping_stats = 1
+    mapping = 1
+    mapstats = 1
+    mapstat = 1
 
-    TOTAL = 1000
-    NZERO = 2000
-    NEMPTY = 2000
+    window_counts = 2
+    window_count = 2
+    windows_counts = 2
+    wincount = 2
+    wincounts = 2
+    wc_count = 2
+    watson_crick = 2
+    wc = 2
+    wc_stats = 2
+    wc_statistics = 2
 
-    total = 1000
-    nzero = 2000
-    nempty = 2000
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def get_window_labels(cls):
-        labels = [f"W{i}" for i in range(10, 101, 10)]
-        return labels
-
-    @classmethod
-    def get_extended_labels(cls):
-        labels = [f"W{i}" for i in range(10, 101, 10)]
-        labels += ["NZERO", "TOTAL"]
-        return labels
+    window_divergence = 3
+    windows_divergence = 3
+    windiv = 3
+    window_div = 3
+    window_divergences = 3
 
 
-class ReadCounts(enum.Enum):
-    CRICK = 1
-    WATSON = 2
-    TOTAL = 3
-
+class Orientation(AshleysEnum):
     crick = 1
     watson = 2
-    total = 3
+    C = 1
+    W = 2
+    c = 1
+    w = 2
 
     plus = 1
     minus = 2
@@ -95,5 +59,82 @@ class ReadCounts(enum.Enum):
     forward = 1
     reverse = 2
 
-    def __str__(self):
-        return self.name
+
+class Columns(AshleysEnum):
+    library = 1
+    lib_id = 1
+    library_id = 1
+    library_name = 1
+    cell = 1
+    cell_id = 1
+    cell_name = 1
+
+    region = 2
+
+    window_size = 3
+    window = 3
+    ws = 3
+
+    unit = 4
+    units = 4
+
+    sample = 5
+    sample_id = 5
+    sample_name = 5
+
+    subset = 6
+
+    @classmethod
+    def get_index_columns(cls):
+        idx_columns = [
+            cls["library"],
+            cls["region"],
+            cls["window_size"],
+            cls["unit"],
+        ]
+        return idx_columns
+
+    @classmethod
+    def is_index_column(cls, column_name):
+        if isinstance(column_name, str):
+            column = Columns[column_name]
+        elif isinstance(column_name, int):
+            column = Columns(column_name)
+        elif isinstance(column_name, Columns):
+            column = column_name
+        else:
+            raise ValueError(
+                "Unsupported type to create Enum(Columns): "
+                f"{type(column_name)} / {column_name}. Must be "
+                "int, string or Columns."
+            )
+        return column in cls.get_index_columns()
+
+
+class Units(AshleysEnum):
+    ABSOLUTE = 1
+    absolute = 1
+    RELATIVE = 2
+    relative = 2
+    BITS = 3
+    bits = 3
+    BIT = 3
+    bit = 3
+
+
+class GenomicRegion(AshleysEnum):
+    wg = 1
+    whole_genome = 1
+    wholegenome = 1
+    genome_wide = 1
+    genomewide = 1
+    genome = 1
+
+    # TODO this is only needed for windiv
+    # features at the moment, and quite an
+    # ugly place here...
+    complete = 2
+    cmp = 2
+
+    quartile = 3
+    qrt = 3

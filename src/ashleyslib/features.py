@@ -15,9 +15,12 @@ import pandas as pd
 import numpy as np
 import pysam
 
-from ashleyslib import FeatureMappingStatistics as ftms
-from ashleyslib import FeatureWindowStatistics as ftws
-from ashleyslib import Scales as scales
+from ashleyslib import FeatureTypes as FTYPES
+from ashleyslib import Columns, Units, GenomicRegion, Orientation
+
+import ashleyslib.ft_mapstats as ftms
+import ashleyslib.ft_wincount as ftwcnt
+import ashleyslib.ft_windiv as ftwdiv
 
 
 logger = logging.getLogger(__name__)
@@ -131,140 +134,20 @@ def add_features_parser(subparsers):
              "lower MAPQ will be discarded. Default: 10"
     )
     ft_group.add_argument(
-        "--statistics",
-        dest="statistics",
-        action="store_true",
-        default=False,
-        help="Generate statistical values for window features."
+        "--feature-types",
+        "-ft",
+        dest="feature_types",
+        nargs='+',
+        type=str,
+        default=['window_counts', 'window_divergence'],
+        help="Specify feature types to compute (besides basic mapping statistics). "
+             "Default: window_counts window_divergence"
     )
 
     parser.set_defaults(execute=run_feature_generation)
 
     return subparsers
 # fmt: on
-
-
-def filter_read_alignments(count_statistics, min_mapq, read):
-
-    read_position = None
-    if read.is_unmapped:
-        count_statistics[ftms.UNMAPPED] += 1
-    else:
-        count_statistics[ftms.MAPPED] += 1
-        if read.is_supplementary or read.is_secondary or read.is_qcfail:
-            count_statistics[ftms.SUPPLEMENTARY] += 1
-        elif read.is_duplicate:
-            count_statistics[ftms.DUPLICATE] += 1
-        elif read.mapping_quality < min_mapq:
-            count_statistics[ftms.MAPQ] += 1
-        elif read.is_read2:
-            count_statistics[ftms.READ2] += 1
-        else:
-            count_statistics[ftms.GOOD] += 1
-            read_position = read.reference_start
-            if read.is_reverse:
-                read_position *= -1
-    return read_position
-
-
-def finalize_mapping_statistics_per_chromosome(library_name, chromosome, mapping_stats):
-
-    # add total read count for this chromosome
-    mapping_stats[ftms.TOTAL] = mapping_stats[ftms.UNMAPPED] + mapping_stats[ftms.MAPPED]
-    # turn into pd.Series
-    mapping_stats = pd.Series(mapping_stats, dtype=np.int32)
-    # cast names from enum to string for later storing as HDF5
-    mapping_stats.index = [e.name for e in mapping_stats.index]
-    mapping_stats_relative = mapping_stats / mapping_stats[ftms.TOTAL.name]
-    mapping_stats = pd.DataFrame(
-        [mapping_stats, mapping_stats_relative],
-        index=pd.MultiIndex.from_tuples(
-            [
-                (library_name, chromosome, scales.ABSOLUTE.name),
-                (library_name, chromosome, scales.RELATIVE.name),
-            ],
-            names=["library", "region", "scale"],
-        ),
-    )
-    return mapping_stats
-
-
-def collect_window_statistics_per_chromosome(
-    crick_reads, watson_reads, window_sizes, chromosome, chrom_size, library_name
-):
-
-    collect_window_statistics = []
-    window_statistics_index = []
-
-    # generic bins [0...10...20.......100]
-    # to count number of windows having
-    # <10, <20, <30 ... percent of Watson reads
-    decile_bins = np.arange(0, 101, 10)
-    decile_labels = ftws.get_window_labels()
-    assert len(decile_labels) == 10
-
-    for w in window_sizes:
-        # number of windows needs to be
-        # recorded for data normalization
-        num_windows = 0
-        num_nonzero_windows = 0
-
-        watson_decile_bins_abs = np.zeros(len(decile_labels), dtype=np.int32)
-        for step in [0, w // 2]:
-            # adjust chromosome size to include last incomplete
-            # window; for larger window sizes such as 5 Mbp, this
-            # can be a considerable fraction of the chromosome
-            adjusted_chrom_size = (chrom_size + step) // w * w + w
-
-            # +1 here to have last window created
-            windows = np.arange(step, adjusted_chrom_size + 1, w)
-
-            # check that start of last window is always smaller than
-            # end of current chromosome
-            assert (
-                windows[-2] < chrom_size
-            ), f"{chromosome} invalid window start: {windows[-2:]} >= {chrom_size} [{adjusted_chrom_size} / {w} / {step}]"
-            # check that end of last window is always overlapping
-            # end of current chromosome
-            assert (
-                windows[-1] >= chrom_size
-            ), f"{chromosome} invalid window end: {windows[-2:]} < {chrom_size} [{adjusted_chrom_size} / {w} / {step}]"
-
-            # windows.size is length of list, but we need
-            # number of bins here, i.e. -1
-            num_windows += windows.size - 1
-            crick_counts, _ = np.histogram(crick_reads, windows)
-            watson_counts, _ = np.histogram(watson_reads, windows)
-            total_counts = crick_counts + watson_counts
-            # avoid division by zero
-            nz_idx = total_counts > 0
-            num_nonzero_windows += nz_idx.sum()
-            watson_pct_per_window = watson_counts[nz_idx] / total_counts[nz_idx] * 100
-            watson_decile_counts, _ = np.histogram(watson_pct_per_window, decile_bins)
-            # sum up decile counts
-            watson_decile_bins_abs += watson_decile_counts
-
-        # append window and non-zero window count
-        extended_decile_bins = np.append(
-            watson_decile_bins_abs, [num_nonzero_windows, num_windows], axis=0
-        )
-        # turn into Pandas Series
-        counts = pd.Series(extended_decile_bins, index=ftws.get_extended_labels(), dtype=np.int32)
-        collect_window_statistics.append(counts)
-        window_statistics_index.append((library_name, chromosome, w, scales.ABSOLUTE.name))
-        relative = counts / counts[ftws.NZERO.name]
-        relative[[ftws.NZERO.name, ftws.TOTAL.name]] = (
-            counts[[ftws.NZERO.name, ftws.TOTAL.name]] / counts[ftws.TOTAL.name]
-        )
-        collect_window_statistics.append(relative)
-        window_statistics_index.append((library_name, chromosome, w, scales.RELATIVE.name))
-
-    collect_window_statistics = pd.concat(collect_window_statistics, axis=1, ignore_index=False)
-    collect_window_statistics = collect_window_statistics.transpose()
-    collect_window_statistics.index = pd.MultiIndex.from_tuples(
-        window_statistics_index, names=["library", "region", "window_size", "scale"]
-    )
-    return collect_window_statistics
 
 
 def normalize_library_name(library_name):
@@ -287,15 +170,13 @@ def normalize_library_name(library_name):
 
 
 def compute_features_per_chromosome(parameter_set):
-    """
-    Parameter feature types is unused at the moment
-    """
+    """ """
 
-    bam_file, chromosome, window_sizes, min_mapq, feature_types = parameter_set
+    bam_file, chromosome, window_sizes, min_mapq, compute_features = parameter_set
     library_name = normalize_library_name(pl.Path(bam_file.stem).name)
 
     mapping_stats = col.Counter()
-    aln_filter = fnt.partial(filter_read_alignments, mapping_stats, min_mapq)
+    aln_filter = fnt.partial(ftms.filter_read_alignments, mapping_stats, min_mapq)
 
     with pysam.AlignmentFile(bam_file, "r") as bam:
         chrom_size = bam.get_reference_length(chromosome)
@@ -310,85 +191,62 @@ def compute_features_per_chromosome(parameter_set):
         crick_reads = good_reads[good_reads > 0]  # "plus" reads
         watson_reads = good_reads[good_reads < 0] * -1  # "minus" reads
 
-    mapping_stats = finalize_mapping_statistics_per_chromosome(
-        library_name, chromosome, mapping_stats
-    )
-
-    window_stats = collect_window_statistics_per_chromosome(
-        crick_reads, watson_reads, window_sizes, chromosome, chrom_size, library_name
-    )
+    # note that the basic mapping statistics features are not optional
+    # b/c they are essentially computed entirely while reading the read alignments
+    mapping_stats = ftms.finalize_mapstats_per_chromosome(library_name, chromosome, mapping_stats)
 
     results = {
-        "library_name": library_name,
-        "chromosome": chromosome,
-        "mapping_statistics": mapping_stats,
-        "window_statistics": window_stats,
-        "crick_reads": pd.Series(crick_reads, dtype=np.int32),
-        "watson_reads": pd.Series(watson_reads, dtype=np.int32),
+        Columns.library: library_name,
+        Columns.region: chromosome,
+        FTYPES.mapstats: mapping_stats,
     }
+
+    # TODO: if all feature compute funtions can be implemented with the same
+    # interface, this could be abstracted here...
+    if FTYPES.window_counts in compute_features:
+        window_count_stats = ftwcnt.collect_window_count_statistics_per_chromosome(
+            crick_reads, watson_reads, window_sizes, chromosome, chrom_size, library_name
+        )
+        results[FTYPES.wincounts] = window_count_stats
+
+    if FTYPES.window_divergence in compute_features:
+        window_divergence_stats = ftwdiv.collect_window_divergence_statistics_per_chromosome(
+            crick_reads, watson_reads, window_sizes, chromosome, chrom_size, library_name
+        )
+        results[FTYPES.windiv] = window_divergence_stats
+
+    results[Orientation.crick] = pd.Series(crick_reads, dtype=np.int32)
+    results[Orientation.watson] = pd.Series(watson_reads, dtype=np.int32)
 
     return results
 
 
-def aggregate_mapping_features(feature_set, num_chromosomes):
-    """ """
-    libraries = feature_set.index.unique(level="library")
+def aggregate_features(parameter_set):
 
-    wg_aggregates = []
+    ftype, records, num_chromosomes = parameter_set
 
-    for lib in libraries:
-        counts = feature_set.xs([lib, scales.ABSOLUTE.name], level=["library", "scale"])
-        assert counts.shape[0] == num_chromosomes
-        counts = counts.sum(axis=0)
-        norm_subset = counts / counts[ftms.TOTAL.name]
-        df = pd.DataFrame(
-            [counts, norm_subset],
-            columns=counts.index,
-            index=pd.MultiIndex.from_tuples(
-                [
-                    (lib, "wg", scales.ABSOLUTE.name),
-                    (lib, "wg", scales.RELATIVE.name),
-                ],
-                names=["library", "region", "scale"],
-            ),
+    records = pd.concat(records, axis=0, ignore_index=False)
+    if ftype == FTYPES.mapstats:
+        wg_records, packed_table = ftms.aggregate_mapstats_genome_wide(records, num_chromosomes)
+        records = pd.concat([records, wg_records], axis=0, ignore_index=False)
+    elif ftype == FTYPES.window_count:
+        wg_records, packed_table = ftwcnt.aggregate_window_count_features(records, num_chromosomes)
+        records = pd.concat([records, wg_records], axis=0, ignore_index=False)
+    elif ftype == FTYPES.window_divergence:
+        records, packed_table = ftwdiv.aggregate_window_divergence_features(
+            records, num_chromosomes
         )
-        wg_aggregates.append(df)
-    wg_aggregates = pd.concat(wg_aggregates, axis=0, ignore_index=False)
-    return wg_aggregates
-
-
-def aggregate_window_features(feature_set, num_chromosomes):
-    """ """
-    libraries = feature_set.index.unique(level="library")
-    window_sizes = feature_set.index.unique(level="window_size")
-
-    wg_aggregates = []
-
-    for lib in libraries:
-        for window in window_sizes:
-            counts = feature_set.xs(
-                [lib, window, scales.ABSOLUTE.name], level=["library", "window_size", "scale"]
-            )
-            assert counts.shape[0] == num_chromosomes
-            counts = counts.sum(axis=0)
-            norm_subset = counts / counts[ftws.NZERO.name]
-            norm_subset[[ftws.NZERO.name, ftws.TOTAL.name]] = (
-                counts[[ftws.NZERO.name, ftws.TOTAL.name]] / counts[ftws.TOTAL.name]
-            )
-            df = pd.DataFrame(
-                [counts, norm_subset],
-                columns=counts.index,
-                index=pd.MultiIndex.from_tuples(
-                    [
-                        (lib, "wg", window, scales.ABSOLUTE.name),
-                        (lib, "wg", window, scales.RELATIVE.name),
-                    ],
-                    names=["library", "region", "window_size", "scale"],
-                ),
-            )
-            wg_aggregates.append(df)
-    wg_aggregates = pd.concat(wg_aggregates, axis=0, ignore_index=False)
-    return wg_aggregates
+    else:
+        raise ValueError(f"Cannot process feature type {ftype}")
+    # important: the records DF may contain Enum-type objects that cannot be loaded
+    # outside of ASHLEYS. These must be cast to string before dumping to HDF
+    index_columns = [str(level.name) for level in records.index.levels]
+    records.reset_index(inplace=True, drop=False)
+    records.columns = [str(c) for c in records.columns]
+    records[index_columns] = records[index_columns].astype(str)
+    records.set_index(index_columns, inplace=True, drop=True)
+    records.sort_index(inplace=True)
+    return ftype, records, packed_table
 
 
 def compute_features(
@@ -396,70 +254,60 @@ def compute_features(
     chromosomes,
     window_sizes,
     min_mapq,
-    feature_types,
+    compute_features,
     discard_positions,
     jobs,
     out_hdf,
 ):
-    """
-    Parameter feature_types not used at the moment
-    """
-
-    collect_mapping_stats = []
-    collect_window_stats = []
+    """ """
+    collect_feature_stats = col.defaultdict(list)
 
     with mp.Pool(jobs) as pool:
         resiter = pool.imap_unordered(
             compute_features_per_chromosome,
             create_parameter_combination(
-                input_bams, chromosomes, window_sizes, min_mapq, feature_types
+                input_bams, chromosomes, window_sizes, min_mapq, compute_features
             ),
         )
         for results in resiter:
             if not discard_positions:
-                key_crick_reads = f"reads/{results['library_name']}/{results['chromosome']}/crick"
-                key_watson_reads = (
-                    f"reads/{results['library_name']}/{results['chromosome']}/watson"
-                )
-                results["crick_reads"].to_hdf(
+                key_crick_reads = f"reads/{results[Columns.library]}/{results[Columns.region]}/{Orientation.crick}"
+                key_watson_reads = f"reads/{results[Columns.library]}/{results[Columns.region]}/{Orientation.watson}"
+
+                results[Orientation.crick].to_hdf(
                     out_hdf, key_crick_reads, mode="a", complevel=9, complib="blosc"
                 )
-                results["watson_reads"].to_hdf(
+                results[Orientation.watson].to_hdf(
                     out_hdf, key_watson_reads, mode="a", complevel=9, complib="blosc"
                 )
-            collect_mapping_stats.append(results["mapping_statistics"])
-            collect_window_stats.append(results["window_statistics"])
+            collect_feature_stats[FTYPES.mapping_stats].append(results[FTYPES.mapping_stats])
+            for ftype in compute_features:
+                collect_feature_stats[ftype].append(results[ftype])
 
-    logger.debug("Concatenating per-library/per-chromosome features")
-    collect_mapping_stats = pd.concat(collect_mapping_stats, axis=0, ignore_index=False)
-    logger.debug(f"Mapping statistics result dimension: {collect_mapping_stats.shape}")
-    collect_window_stats = pd.concat(collect_window_stats, axis=0, ignore_index=False)
-    logger.debug(f"Window statistics result dimension: {collect_window_stats.shape}")
+    logger.debug("Feature computation per chromosome completed, starting aggregation...")
 
-    logger.debug("Aggregating per-chromosome features...")
-    wg_mapping_stats = aggregate_mapping_features(collect_mapping_stats, len(chromosomes))
-    logger.debug("Whole-genome mapping statistics aggregated")
+    packed_tables = []
+    with mp.Pool(min(jobs, len(collect_feature_stats))) as pool:
+        resiter = pool.imap_unordered(
+            aggregate_features,
+            [
+                (ftype, records, len(chromosomes))
+                for ftype, records in collect_feature_stats.items()
+            ],
+        )
+        for ftype, agg_records, packed_table in resiter:
+            logger.debug(f"Aggregation for feature {ftype} completed")
+            key_features = f"features/{ftype}"
+            agg_records.to_hdf(out_hdf, key_features, mode="a", complevel=9, complib="blosc")
+            logger.debug(f"Stored features of type {ftype}")
+            packed_tables.append(packed_table)
+            logger.debug(f"Caching packed table of dimension {packed_table.shape}")
 
-    wg_window_stats = aggregate_window_features(collect_window_stats, len(chromosomes))
-    logger.debug("Whole-genome window statistics aggregated")
-
-    collect_mapping_stats = pd.concat(
-        [collect_mapping_stats, wg_mapping_stats], axis=0, ignore_index=False
-    )
-    key_mapping_stats = "features/mapping_statistics"
-    collect_mapping_stats.sort_index(inplace=True)
-    collect_mapping_stats.to_hdf(
-        out_hdf, key_mapping_stats, mode="a", complevel=9, complib="blosc"
-    )
-    logger.debug("Stored mapping statistics features...")
-    collect_window_stats = pd.concat(
-        [collect_window_stats, wg_window_stats], axis=0, ignore_index=False
-    )
-    key_window_stats = "features/window_statistics"
-    collect_window_stats.sort_index(inplace=True)
-    collect_window_stats.to_hdf(out_hdf, key_window_stats, mode="a", complevel=9, complib="blosc")
-    logger.debug("Stored window statistics features...")
-    return collect_mapping_stats, collect_window_stats
+    logger.debug("Concatenating packed tables for text output")
+    packed_tables = pd.concat(packed_tables, axis=1, ignore_index=False)
+    packed_tables.sort_index(inplace=True)
+    logger.debug(f"Size (ROW x COL) of final feature table: {packed_tables.shape}")
+    return packed_tables
 
 
 def collect_input_bam_files(input_paths, recursive, bam_ext):
@@ -550,44 +398,48 @@ def collect_chromosomes(bam_files, chrom_match_expr):
 
 
 def create_parameter_combination(input_bams, chromosomes, window_sizes, min_mapq, feature_types):
-    """
-    feature_types: types of features to compute - implemented for later use, not used at the moment
-    """
+    """ """
     total_bam = len(input_bams)
-    total_chroms = len(chromosomes)
+    total_combinations = total_bam * len(chromosomes)
+    combination = 0
+    notify_thresholds = np.arange(0.1, 1, 0.1, dtype=np.float16)
+    notify_thresholds = np.append(notify_thresholds, 0.95)
+    notified = np.zeros(notify_thresholds.size, dtype=np.bool)
     for n_bam, bam_file in enumerate(input_bams, start=1):
 
-        for m_chrom, chromosome in enumerate(chromosomes, start=1):
+        for _, chromosome in enumerate(chromosomes, start=1):
 
             param_set = (bam_file, chromosome, window_sizes, min_mapq, feature_types)
-            # logger.debug(
-            #     f"Creating parameter set BAM {n_bam}/{total_bam} "
-            #     f"and CHROM {m_chrom}/{total_chroms}"
-            # )
+            combination += 1
+            progress = combination / total_combinations
+            select = np.isclose(progress, notify_thresholds, atol=0.005)
+            if select.any():
+                notify_idx = np.flatnonzero(select)[0]
+                if not notified[notify_idx]:
+                    notified[notify_idx] = True
+                    logger.debug(
+                        f"Processed ~{int(round(progress * 100, 0))}% of jobs "
+                        f"(BAM file {n_bam} of total {total_bam})"
+                    )
             yield param_set
     return
 
 
-def dump_output_table(mapping_stats, window_stats, out_path):
+def validate_feature_types(feature_types):
 
-    wg_subset = mapping_stats.xs(["wg", scales.RELATIVE.name], level=["region", "scale"]).copy()
-    wg_subset.drop(ftms.TOTAL.name, axis=1, inplace=True)
-    feat_per_library = [wg_subset]
-
-    for w in window_stats.index.unique(level="window_size"):
-        wg_subset = window_stats.xs(
-            ["wg", w, scales.RELATIVE.name], level=["region", "window_size", "scale"]
-        ).copy()
-        wg_subset.drop(ftws.TOTAL.name, axis=1, inplace=True)
-        wg_subset.columns = [f"WS{w}_{c}" for c in wg_subset.columns]
-        feat_per_library.append(wg_subset)
-
-    feat_per_library = pd.concat(feat_per_library, axis=1, ignore_index=False)
-    logger.debug(f"Dataset dimension dumped to TSV: {feat_per_library.shape}")
-    feat_per_library.sort_index(inplace=True)
-
-    feat_per_library.to_csv(out_path, sep="\t", header=True, index=True, index_label="library")
-    return
+    invalid_feature_types = []
+    valid_feature_types = []
+    for ft in feature_types:
+        try:
+            enum_ft = FTYPES[ft.lower()]
+            valid_feature_types.append(enum_ft)
+        except KeyError:
+            invalid_feature_types.append(ft)
+    if invalid_feature_types:
+        raise ValueError(
+            f"The following feature types are unknown: {[str(i) for i in invalid_feature_types]}"
+        )
+    return valid_feature_types
 
 
 def run_feature_generation(args):
@@ -598,6 +450,10 @@ def run_feature_generation(args):
     logger.info("Running feature generation module...")
     logger.info(f"Computing features for window size(s): {args.window_size}")
     mapq_threshold = args.min_mapq
+
+    logger.info("Checking feature types to compute...")
+    feature_types = validate_feature_types(args.feature_types)
+    logger.debug(f"Computing the following feature types: {[str(f) for f in feature_types]}")
 
     logger.debug("Checking output path...")
     args.output_features.parent.mkdir(exist_ok=True, parents=True)
@@ -614,19 +470,19 @@ def run_feature_generation(args):
     logger.info(f"Total number of parameter combinations to process: {total_combinations}")
 
     logger.info(f"Start feature computation using {args.jobs} CPU cores")
-    mapping_stats, window_stats = compute_features(
+    feature_table = compute_features(
         input_bams,
         process_chroms,
         args.window_size,
         mapq_threshold,
-        tuple(),  # this is a placeholder for "feature_types"
+        feature_types,
         args.discard_read_positions,
         args.jobs,
         out_hdf,
     )
     logger.info("Feature computation completed, dumping TSV output table")
 
-    _ = dump_output_table(mapping_stats, window_stats, out_tsv)
+    feature_table.to_csv(out_tsv, sep="\t", header=True, index=True)
 
     logger.info("Done - exiting...")
 
