@@ -104,7 +104,7 @@ def aggregate_mapstats_genome_wide(feature_set, num_chromosomes):
         )
         wg_aggregates.append(df)  # one DF per library
     wg_aggregates = pd.concat(wg_aggregates, axis=0, ignore_index=False)
-    packed_table = pack_mapstats_table(wg_aggregates.copy())
+    packed_table = pack_mapstats_table(wg_aggregates)
     return wg_aggregates, packed_table
 
 

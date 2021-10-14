@@ -67,6 +67,16 @@ def add_features_parser(subparsers):
              "Default: .bam"
     )
     io_group.add_argument(
+        "--set-sample",
+        "-s",
+        type=str,
+        dest="sample",
+        default="",
+        help="Add this sample name to the feature tables (no sanity checks). "
+             "Obviously, this option should only be used if all input BAM files "
+             "belong to the same sample."
+    )
+    io_group.add_argument(
         "--recursive",
         "-r",
         dest="recursive",
@@ -83,6 +93,17 @@ def add_features_parser(subparsers):
         default="^(chr)?[0-9X]+$",
         help="Specify regular expression to select chromosomes for "
              "feature computation. Default: (chr)1-22, X",
+    )
+    io_group.add_argument(
+        "--store-only-positions",
+        "-sop",
+        type=str,
+        dest="store_only",
+        nargs="*",
+        default=None,
+        help="List chromosomes (by name, no regexp) that should be excluded "
+             "from feature computation, i.e. only position of 'good' reads "
+             "will be stored in the HDF output. Default: None"
     )
     io_group.add_argument(
         "--discard-read-positions",
@@ -251,7 +272,9 @@ def aggregate_features(parameter_set):
 
 def compute_features(
     input_bams,
+    sample_name,
     chromosomes,
+    store_only_chroms,
     window_sizes,
     min_mapq,
     compute_features,
@@ -280,6 +303,9 @@ def compute_features(
                 results[Orientation.watson].to_hdf(
                     out_hdf, key_watson_reads, mode="a", complevel=9, complib="blosc"
                 )
+            if results[Columns.region] in store_only_chroms:
+                logger.debug(f"Skipping over 'store only' chromosome: {results[Columns.region]}")
+                continue
             collect_feature_stats[FTYPES.mapping_stats].append(results[FTYPES.mapping_stats])
             for ftype in compute_features:
                 collect_feature_stats[ftype].append(results[ftype])
@@ -291,13 +317,17 @@ def compute_features(
         resiter = pool.imap_unordered(
             aggregate_features,
             [
-                (ftype, records, len(chromosomes))
+                (ftype, records, len(chromosomes) - len(store_only_chroms))
                 for ftype, records in collect_feature_stats.items()
             ],
         )
         for ftype, agg_records, packed_table in resiter:
             logger.debug(f"Aggregation for feature {ftype} completed")
             key_features = f"features/{ftype}"
+            if sample_name:
+                # NB: have to use string column name here,
+                # all other names already cast to string at that point
+                agg_records[Columns.sample.name] = sample_name
             agg_records.to_hdf(out_hdf, key_features, mode="a", complevel=9, complib="blosc")
             logger.debug(f"Stored features of type {ftype}")
             packed_tables.append(packed_table)
@@ -305,6 +335,8 @@ def compute_features(
 
     logger.debug("Concatenating packed tables for text output")
     packed_tables = pd.concat(packed_tables, axis=1, ignore_index=False)
+    if sample_name:
+        packed_tables[Columns.sample] = sample_name
     packed_tables.sort_index(inplace=True)
     logger.debug(f"Size (ROW x COL) of final feature table: {packed_tables.shape}")
     return packed_tables
@@ -389,10 +421,10 @@ def collect_chromosomes(bam_files, chrom_match_expr):
 
     if not select_chromosomes:
         raise ValueError("No chromosome information found in BAM file(s)")
-
+    select_chromosomes = list(select_chromosomes)
     # shuffle once to avoid that all large chromosomes
     # are processed in parallel
-    rand.shuffle(list(select_chromosomes))
+    rand.shuffle(select_chromosomes)
 
     return select_chromosomes
 
@@ -466,13 +498,22 @@ def run_feature_generation(args):
     logger.info(f"Collected {len(input_bams)} BAM files to process")
     process_chroms = collect_chromosomes(input_bams, args.chromosomes)
     logger.info(f"Selected {len(process_chroms)} chromosomes to process")
+    if args.store_only is not None:
+        logger.debug(f'Adding the following chromosomes as "store only" set: {args.store_only}')
+        process_chroms.extend(args.store_only)
+        store_only_set = args.store_only
+        assert isinstance(store_only_set, list)
+    else:
+        store_only_set = []
     total_combinations = len(input_bams) * len(process_chroms)
     logger.info(f"Total number of parameter combinations to process: {total_combinations}")
 
     logger.info(f"Start feature computation using {args.jobs} CPU cores")
     feature_table = compute_features(
         input_bams,
+        args.sample,
         process_chroms,
+        store_only_set,
         args.window_size,
         mapq_threshold,
         feature_types,

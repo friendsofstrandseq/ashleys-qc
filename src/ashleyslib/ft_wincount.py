@@ -170,16 +170,12 @@ def aggregate_window_count_features(feature_set, num_chromosomes):
             )
             wg_aggregates.append(df)  # one DF per library and window size
     wg_aggregates = pd.concat(wg_aggregates, axis=0, ignore_index=False)
-    packed_table = pack_wincount_table(wg_aggregates.copy())
+    packed_table = pack_wincount_table(wg_aggregates)
     return wg_aggregates, packed_table
 
 
 def pack_wincount_table(wg_subset):
     """ """
-    # NB: copy of wg_subset important b/c of drop here
-    # the total feature is not informative by construction
-    # (only needed for normalization)
-    wg_subset.drop(FTWCNT.total, axis=1, inplace=True)
 
     window_subsets = []
     for window_size in wg_subset.index.unique(level=Columns.window_size):
@@ -187,6 +183,7 @@ def pack_wincount_table(wg_subset):
             [GenomicRegion.wg, window_size, Units.relative],
             level=[Columns.region, Columns.window_size, Columns.unit],
         ).copy()
+        window_subset.drop(FTWCNT.total, axis=1, inplace=True)
         window_subset.columns = [f"WS{window_size}_{c}" for c in window_subset.columns]
         window_subsets.append(window_subset)
 

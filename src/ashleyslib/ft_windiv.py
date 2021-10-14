@@ -178,7 +178,7 @@ def aggregate_window_divergence_features(feature_set, num_chromosomes):
             )
             wg_aggregates.append(df)  # one DF per library and window size
     wg_aggregates = pd.concat(wg_aggregates, axis=0, ignore_index=False)
-    packed_table = pack_windiv_table(wg_aggregates.copy())
+    packed_table = pack_windiv_table(wg_aggregates)
     return wg_aggregates, packed_table
 
 
