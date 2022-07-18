@@ -4,10 +4,10 @@
 
 import argparse
 
-from ashleyslib.train_classification_model import add_training_parser
-from ashleyslib.feature_generation import add_features_parser
-from ashleyslib.prediction import add_prediction_parser
-from ashleyslib.plotting import add_plotting_parser
+from ashleys.train_classification_model import add_training_parser
+from ashleys.feature_generation import add_features_parser
+from ashleys.prediction import add_prediction_parser
+from ashleys.plotting import add_plotting_parser
 
 
 def parse_command_line():

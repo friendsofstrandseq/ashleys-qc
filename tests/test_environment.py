@@ -5,7 +5,7 @@ import pytest
 import sys
 import sklearn
 
-from ashleyslib.prediction import predict_model
+from ashleys.prediction import predict_model
 
 
 def test_pickle_warning():
