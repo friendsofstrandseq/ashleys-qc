@@ -10,7 +10,7 @@ def extract_package_info():
     :return:
     """
     setup_path = os.path.dirname(os.path.abspath(__file__))
-    pck_path = os.path.join(setup_path, 'src', 'ashleyslib', '__init__.py')
+    pck_path = os.path.join(setup_path, 'src', 'ashleys', '__init__.py')
     assert os.path.isfile(pck_path), \
         'Could not detect ashleys-lib init under path {}'.format(os.path.dirname(pck_path))
     infos = dict()
@@ -49,11 +49,11 @@ def locate_executable():
 pck_infos = extract_package_info()
 
 setup(
-    name="ashleyslib",
+    name="ashleys",
     version=pck_infos['__version__'],
     packages=find_packages('src'),
     package_dir={'': 'src'},
-    scripts=[locate_executable()],
+    scripts=["src/ashleys/ashleys"],
     install_requires=read_requirements(),
 
     author=pck_infos['__author__'],
