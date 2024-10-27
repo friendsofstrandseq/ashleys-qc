@@ -35,7 +35,7 @@ def get_header(windows_list, use_statistics):
     feature_names = []
     regular_features = ['W10', 'W20', 'W30', 'W40', 'W50', 'W60', 'W70', 'W80', 'W90', 'W100', 'total']
     if use_statistics:
-        statistics_features = ['stdev', 'mean', 'n_stdev', 'n_mean']
+        statistics_features = ['stdev', 'mean', 'var', 'median', 'n_stdev', 'n_mean', 'n_var', 'n_median']
         regular_features = regular_features + statistics_features
     mb = 1000000
     for w in windows_list:
@@ -94,7 +94,7 @@ def get_wc_composition(total_window_collection_wc, total_window_collection, wind
             wc_difference.append(last_window - current_window)
         last_window = current_window
 
-        values.append(total_window_collection[i])
+        values.append(total_window_collection[i] - 1)
 
     if total == 0:
         zero_list = ['0.0'] * 10
@@ -126,7 +126,7 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
         # count reads in each window of size stepsize
         for i in range(0, length, step_size):
             window_count += 1
-            s = str(chrom) + str(i)
+            s = str(chrom) + ":" + str(i)
             window_collection.update({s: 1})
             window_collection_wc.update({s: 1})
             window_collection_wc.update({s+'W': 1})
@@ -167,7 +167,7 @@ def get_read_features(chrom, bamfile_name, window_size, mapq_threshold):
                     window_collection_wc.update({s+'C': 1})
 
             if not i == 0:
-                last_window = str(chrom) + str(i-step_size)
+                last_window = str(chrom) + ":" + str(i-step_size)
                 diff = window_collection[last_window] - window_collection[s]
                 neighbor_difference.append(diff)
 
